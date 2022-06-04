@@ -1,0 +1,25 @@
+\newcommand{\newdefinedabbreviation}[3]{
+    \newglossaryentry{#1}
+    {
+      type=\acronymtype, 
+      name={#2},
+      description={#3},
+      first={#3 (#2)},
+      plural={{#2}s},
+      descriptionplural={{#3}s},
+      firstplural={{#3}s ({#2}s)}
+    }
+}
+
+\newdefinedabbreviation{dc}{DC}{datacenter}
+\newdefinedabbreviation{dfg}{DFG}{dataflow graph}
+\newdefinedabbreviation{slo}{SLO}{service-level objective}
+\newdefinedabbreviation{sla}{SLA}{service-level agreement}
+\newdefinedabbreviation{iot}{IoT}{Internet of things}
+\newdefinedabbreviation{wan}{WAN}{wide-area network}
+\newdefinedabbreviation{qos}{QoS}{quality-of-service}
+\newdefinedabbreviation{vm}{VM}{virtual machine}
+\newdefinedabbreviation{udc}{{\textmu}DC}{micro-datacenter}
+\newdefinedabbreviation{ar}{AR}{augmented reality}
+
+\makeListOfAcronyms

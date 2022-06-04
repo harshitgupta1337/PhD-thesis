@@ -1,0 +1,57 @@
+\documentclass[12pt]{gatechthesis}
+
+\renewcommand{\baselinestretch}{1.3}
+
+%external commands
+\input{commands.tex}
+
+%packages
+\usepackage{comment}
+\usepackage{hyperref}
+\usepackage{textcomp}
+\usepackage{subcaption}
+\usepackage[capitalise]{cleveref}
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage[normalem]{ulem}
+\usepackage{verbatim}
+\usepackage[noend]{algpseudocode}
+\usepackage{minted}
+
+% preamble
+
+\title{Mechanisms for compute and data orchestration for geo-distributed situation-awareness applications on edge infrastructure}
+\author{Harshit Gupta}
+\approvaldate{December 6, 2021}
+\school{School of Computer Science}
+\department{College of Computing}
+\bibliography{references}
+
+% document body
+\begin{document}
+
+\makeTitlePage{December}{2021}
+%\input{approvalPage.tex}
+%\makeEpigraph{I'm not super. Any talents I have, I worked for -- it seems a long time since I thought of myself as a hero.}{Oliver Queen}
+%\makeDedication{For my wife Laura}
+
+\begin{frontmatter}
+    %\input{acknowledgments}
+    \makeTOC
+    \makeListOfTables
+    \makeListOfFigures
+    \input{abbrevs}
+    \input{summary}
+\end{frontmatter}
+
+\begin{thesisbody}
+    %\input{chapters/introduction}
+    \input{chapters/applications}
+    \input{chapters/mechanisms}
+    \input{chapters/epulsar}
+    \input{chapters/oneedge}
+    \input{chapters/fogstore}
+    \makeBibliography
+\end{thesisbody}
+
+\end{document}
