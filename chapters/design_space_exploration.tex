@@ -1,0 +1,253 @@
+\chapter{Design Space Exploration for Implementation of Proposed Mechanisms}
+\label{sec:design_space_exploration}
+\section{Dynamic Spatial Context Management}
+
+We divide the design space exploration of the dynamic spatial context management mechanism into two parts. We first explore the appropriate choice of spatial partitioning technique, which deals with how to divide a geographical space into multiple tiles, and map clients to these tiles. The second exploration we carry out is the system architecture for continuously monitoring client location and triggering a migration to a new tile when the client enters the new tile. We define the requirements expected from both these components of the architecture, enumerate the metrics of interest and carry out evaluations to quantify the performance of candidate design choices. Based on the results of the evaluations, we choose the design choice that performs best to build the dynamic spatial context management mechanism.
+
+\subsection{Client Workload assumed}
+The behavior of spatial context management is dependent on the locations of clients within the geographical space in question. We assume that an application would define a large geographical area (typically the size of a city) wherein its clients would be located, and the spatial context of a client would be a subset of the entire geographical area. For this design space exploration, we consider the area of downtown Shanghai where clients are spawned at random locations following a uniform probability distribution. We generate trajectories of 1000 clients that move in the geographical space following the random waypoint mobility model. 
+
+\subsection{Maintaining Spatial Partitioning}
+The objective of a spatial partitioning technique in the context of the dynamic spatial context management mechanism is to be able to associate multiple clients that belong to the same spatial context together. This mapping of clients to each other can be defined by splitting the application's geographical space into several regions (also called tiles) such that the clients that are located within a region share spatial context and would need to coordinate among one another. 
+\par Each of the regions created out of spatial partitioning could be mapped to an application instance, in which case each application instance would serve the clients that belong to that tile. In another scenario, the spatial partitioning could serve as a range query lookup tool for spatially distributed data, and a tile could form the unit of data-sharing. We denote the number of entities mapped to a tile as the \textit{occupancy} of that tile. In both these scenarios, a tile which has a very high occupancy would result in compute overload at the associated application instance or high range-query overhead for the mapped data-items. \todo{Give example with figure for both client-mapping and data-item-mapping.} Hence, the requirement is that the occupancy should be relatively uniform across tiles. 
+\par Considering a static scenario, with no mobility of clients, as an example, a trivial mapping that uses a very fine-grained spatial partitioning to map each entity to a distinct tile would result in minimum imbalance, because each tile would be associated with exactly 1 entity. However, this would also result in the existence of a large number of tiles, which is unnecessary and even counter-productive, because, for instance, applications do require that multiple clients be mapped to the same tile so that inter-client coordination can be possible.
+\par Hence, we identify two metrics for quantifying the \textit{goodness} of a spatial partitioning scheme. We quantify the degree of imbalance in tile occupancy by computing the difference between the maximum and minimum occupancy values over all tiles. The higher this metric, the more imbalanced the client-to-tile mapping is. We also measure the number of tiles effectively in action, i.e., those tiles to which at least one entity has been mapped. Ideally, this number should be as low as possible, so that we don't have a large number of application instances.
+\par For this evaluation, we are interested in evaluating spatial partitioning techniques using the aforementioned metrics, while assuming that the spatial context management mechanism had accurate and real-time information about the location of each client. Following the Random Waypoint Mobility model as described earlier, the location of each client is updated every millisecond. The updated locations are fed to the spatial partitioning unit, which updates the client-to-tile mapping. At every such time instance we calculate the two metrics of interest, hence generating a time-series for each of the spatial partitioning configurations evaluated. We later average these measurements across time and present a scalar value that represents the performance of the given spatial partitioning technique.
+
+\subsubsection{Spatial Partitioning Techniques Evaluated}
+We evaluate two spatial partitioning techniques that are common in the literature \cite{}\todo{Cite papers}.
+
+\begin{figure}
+\centering
+\begin{subfigure}{0.33\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/design_space/spatial/static_partitioning.pdf}
+  \caption{Illustration of partitioning geographical space using the static partitioning technique.}
+  \label{fig:static_part}
+\end{subfigure}%
+~~~~~~~~
+\begin{subfigure}{0.66\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/design_space/spatial/kdtree_partitioning.pdf}
+  \caption{Illustration of partitioning geographical space using the KD-Tree technique.}
+  \label{fig:kdtree_part}
+\end{subfigure}\par\medskip
+\caption{Illustration of the candidate spatial partitioning approaches evaluated in the design space exploration. In both the figures, the rectangular area represents the application's geographical coverage and each rectangle inside it represents a tile to which entities are mapped.}
+\end{figure}
+
+\begin{itemize}
+\item \textbf{Static Partitioning}, which is similar to GeoHash geo-indexing technique, wherein geographical space is statically divided into a number of tiles. Since we are not interested in the numeric value of the tile's identifier (unlike typical use-cases of geo-indexing approaches such as GeoHash), we simplify the partitioning by assuming that geographical space is partitioned into a grid of squares, and the number of squares per side is configurable. Each tile can then be represented by a tuple $\left( row, col \right)$, where $row$ and $col$ represent the position of the tile in the grid. Given the location of a client, it is straightforward to map it to a tile based on the size of each tile and the number of tile-squares in each side.
+\item \textbf{KD-Tree based Partitioning}, which uses a two-dimensional KD-tree to partition geographical space. The vertices in the KD-tree represent geographical areas, with the root vertex representing the entire geographical space in question, while the leaf vertices represent the tiles. The spatial bounds of a vertex are fixed and decided when creating the vertex. Looking up the tile that a given client belongs to effectively boils down to performing a traversal from starting from the root vertex down to the leaf vertex that represents the actual tile. At each step in this traversal, the bounds of the child nodes are used to decide which of the child nodes to move to next. The size of each tile is not fixed, rather it changes dynamically as the tree is updated. The only constraint that is enforced by the tree is that the number of clients mapped to a specific tile should not exceed an \textit{occupancy threshold}. If the occupancy of a particular tile becomes higher than the threshold, the tile is split and two children tiles are created. Furthermore, if the total occupancy of two tiles that have the same parent tile is less than the occupancy threshold, the two child tiles are merged.
+\end{itemize}
+
+\begin{figure}
+\centering
+\begin{subfigure}{0.45\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/design_space/spatial/metrics_Grid.png}
+  \caption{Variation of metrics of interest for the static partitioning technique with changing number of tiles along each side of the geographical space.}
+  \label{fig:static_part}
+\end{subfigure}
+~~~~
+\begin{subfigure}{0.45\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/design_space/spatial/metrics_KDTree.png}
+  \caption{Variation of metrics of interest for the KD-Tree based dynamic spatial partitioning technique with changing occupancy threshold per tile.}
+  \label{fig:kdtree_part}
+\end{subfigure}\par\medskip
+\end{figure}
+
+We first evaluate the performance of the Static Partitioning technique against the aforementioned client workload. We evaluate the two metrics of interest - namely Occupancy Imbalance and Number of active tiles. The evaluation is done with several different configurations of the partitioning technique, with each configuration having a distinct value for the number of tiles in each side of the geographical space, ranging from 8 to 32. \cref{fig:static_part} shows the variation of the Occupancy Imbalance and the Number of active tiles as a function of the side-length of the geographical area. As the maximum number of tiles in the area increases, the client-to-tile mapping becomes more uniform in terms of the number of clients mapped to each tile. In that case, the occupancy imbalance drops. However, since there many more smaller tiles now, the number of active tiles increases. This tradeoff is shown in \cref{fig:spatial_tradeoff} as well.
+\par Next we perform the same experiment with the KD-Tree based spatial partitioning technique, wherein we configure the Occupancy Threshold for a tile. We vary the occupancy threshold from 8 to 32 and plot the metrics on interest in \cref{fig:kdtree_part}. The metrics show a similar behavior as in \cref{fig:static_part}. As the occupancy threshold increases, the number of tiles that exist in the system decreases, because each tile can hold more clients. This also results in greater imbalance between the occupancy levels of tiles.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.75\linewidth]{figures/design_space/spatial/spatial_partitioning_tradeoff.png}
+\caption{Tradeoff between the the two metrics of interest - Occupancy Imbalance and Number of active Tiles - for the two types of partitioning techniques evaluated. We changed the configuration of each partitioning technique and repeated the experiment to obtain a range of performance output, which shows the tradeoff between the two metrics.}
+\label{fig:spatial_tradeoff}
+\end{figure}
+
+\cref{fig:spatial_tradeoff} shows the tradeoff between the two metrics of interest for the two spatial partitioning techniques that we evaluate. Both the partitioning techniques show similar behavior for the tradeoff curve, where an increase in imbalance occupancy results in a decrease in the number of active tiles, and vice versa. However, the absolute values of both the metrics are much lower for the KD-Tree based partitioning than the Static partitioning. This is because the KD-Tree partitioning builds tiles based on the physical distribution of clients, instead of being predefined in the case of Static partitioning. Because of this adaptive partitioning that KD-Tree allows, a smaller number of tiles are able to uniformly divide the clients. Hence, we choose KD-Tree based dynamic spatial partitioning technique for building the dynamic spatial context mechanism.
+\subsection{Monitoring Client Location}
+\begin{itemize}
+\item Monitoring the current location of clients is necessary for maintaining the KD-Tree based spatial partitioning because of two main reasons - (i) it provides the information necessary for maintaining the occupancy information, and trigger the remapping of a client to another tile when it leaves the current one, and (ii) when partitioning a tile, updated client locations provide hints about how to partition the tile so that a roughly equal number of clients are present in both the children tiles.
+\item The spatial partitioning is maintained in a centralized location so that an authoritative copy can be maintained. Sending location updates from all clients to the centralized location consumes network bandwidth as well as creates a large number of occupancy updates which don't necessarily result in a change in the current tile. 
+\item We choose two metrics of interest for evaluating the candidate designs for location monitoring module of the dynamic spatial context management mechanism. The first metric is the number of location monitoring messages that need to be sent to the centralized location. This metric should be minimized to improve system scalability. The second metric is the total occupancy violation time, i.e., the sum of all the time durations for which some tile's occupancy threshold was violated. Since the occupancy threshold is set by the application, violating it would result in suboptimal performance.
+\end{itemize}
+
+\subsubsection{Candidate Approaches Evaluated}
+\begin{itemize}
+\item \textbf{Centralized Approach. }A straightforward design for maintaining updated client locations is to send all location updates from clients to the centralized location holding the authoritative copy of the spatial partitioning. Clients receive the identifier of the current tile based on their current location, and if the received tile identifier is different from the current tile, they would connect to the application instance corresponding to the new tile. The centralized spatial partitioning unit would transparently handle scenarios when the partitioning is updated due to tile merging or splitting operations. Although this approach is very straightforward to design and implement, it suffers from high overhead of constantly monitoring the locations of all clients at all times.
+\item \textbf{Distributed Approach. } Unlike the centralized approach, where the client simply reports the current location to the spatial partitioning module and receives the identifier of the current tile, the distributed approach maintains a cache of the spatial partitioning locally. The local cache is invalidated and updated every time the authoritative copy at the centralized location is updated due to tile merging or splitting operations. The cache is then used by the client to keep track of its location with respect to the current tile, and in the event that its location leaves the current tile, it triggers a migration to connect to the new tile. The cache also periodically report its location to the authoritative copy so that tile split operations can effectively partition clients into the child tiles equally.
+\end{itemize}
+
+\section{Network Proximity Estimation}
+
+\begin{itemize}
+\item Control-plane policies of platform services need to make data and compute placement decisions so as to satisfy data processing latency constraints. In an Edge setting, network communication latency forms a significant portion of the end-to-end latency. Previous work in the cloud computing domain has come up with accurate techniques for estimating computation latency, but didn't consider communication latency due to the rather homogeneous and well connected nature of datacenter network topology. 
+\item In an Edge infrastructure, it is important to be able to accurately estimate the network latency between a pair of system entities, so that the control-plane policy can make a data/compute placement decision to satisfy end-to-end latency.
+\item The network proximity estimation cannot be done using active measurements at the time of execution of the control-plane policy logic, because a typical policy requires pairwise network latency between several pairs of nodes to make its decision. Waiting for the measurements to complete in the critical path of policy execution would severely impact the responsiveness of the control plane.
+\item Hence, the network proximity estimation mechanism needs to continuously maintain network proximity metadata for each node in the infrastructure. The size of the metadata needs to be tractable so that it can be efficiently queried to estimate pairwise network latency.
+\item The mechanism should estimate pair-wise network latency with high accuracy. Furthermore, it should be able to quickly adapt to changes in network topology due to client mobility or link failures. Both the accuracy and recovery-time of the mechanism to topology dynamism should not deteriorate with increasing number of nodes, meaning that the mechanism should be scalable.
+\end{itemize}
+
+\subsection{Metrics of Interest}
+We consider the following metrics of interest when evaluating the candidate design choices for network proximity estimation mechanism.
+
+\begin{itemize}
+\item \textbf{Latency Estimation Error.} We measure the root-mean squared relative error between the estimated and the actual (ground-truth) network latency. For a pair of nodes $i$ and $j$, the estimated and actual network latencies for the pair $\left( i, j\right)$ is denoted by $N_{\left( i, j\right)}$ and $\hat{N}_{\left( i, j\right)}$ respectively. The root-mean squared relative error in latency estimation is then calculated as shown in \cref{eq:rmsre}.
+\begin{equation}
+\label{eq:rmsre}
+RMSE = \sqrt{\sum_{\forall \left(i, j \right) i \neq j}{\left(\dfrac{N_{\left( i, j\right)} - \hat{N}_{\left( i, j\right)}}{\hat{N}_{\left( i, j\right)}}\right)^2}}
+\end{equation}
+\todo{Fix the RMSRE to be RMSE}
+\item \textbf{Number of Messages Exchanged}. We measure the number of messages exchanged between the various nodes in the system before the error in latency estimation drops below the minimum threshold.
+\item \textbf{Amount of Metadata} needed by control-plane policies. We analytically calculate the amount of information that would need to be stored at the control-plane in order to support a typical compute/data placement control-plane policy.
+\item \textbf{Response-Time to Topology Dynamism.} We measure the amount of time taken after a change in a particular node's connectivity before all the nodes are aware of that change. This measures the response-time of the mechanism to react to topology changes.
+\end{itemize}
+
+\subsection{Candidate Design Choices Evaluated}
+\begin{figure}
+\centering
+\includegraphics[width=0.4\linewidth]{figures/design_space/nw_prox/basic_sys_arch.pdf}
+\caption{Basic components in the system architecture of the network proximity estimation mechanism. Multiple participating agents communicate among each other to perform actual RTT measurements \todo{(add in figure)} and compute network proximity. The network proximity information is uploaded to a repository from where this information is supplied to control-plane policies.}
+\label{fig:nw_prox_arch}
+\end{figure}
+\cref{fig:nw_prox_arch} shows the basic architecture that the various design choices of the network proximity estimation mechanism have. It is composed of a number of \textit{agents}, with one agent co-located with every system entity with which network proximity needs to be measured. Each agent computes its network proximity to the other agents, and communicates the proximity information to a central repository, which is queried by control-plane policies for estimating network round-trip time (RTT) between any two system entities. The design choices which we explore in this section follow the agent-based architecture, and deal with the kind of communication protocol that each agent follows and the kind of metadata stored by the mechanism that allows it to answer network proximity queries made by control-plane policies. We evaluate the following design choices for the network proximity estimation mechanism. 
+\subsubsection{Pair-wise Measurements based Approach}
+\begin{itemize}
+\item Representation of network proximity is in the form of a 2-dimensional array $A$, where $A [ i, j ]$ represents the network latency between agent $i$ and $j$. 
+\item Each participating agent periodically performs a network round-trip time (RTT) measurement between itself and another agent. Each agent uses a round-robin policy to select which other agent it is going to probe to measure the RTT. 
+\item After each measurement, the agent provides the RTT information between itself and the other agent with which the measurement was performed to the centralized repository of network proximity.
+\end{itemize}
+
+\subsubsection{Network Coordinates}
+Network coordinate (NC) systems are distributed protocols to scalably determine the network proximity between a pair of nodes in a distributed system without performing direct measurements \cite{donnet2010survey} between all pairs of nodes. Such systems embed nodes in a geometric space such that the network latency between any two nodes can be estimated by calculating the Euclidean distance between their positions (coordinates) in this space. Previous work on analysis of latencies in the Internet has shown that nodes can be embedded in a 3-dimensional or higher space with relatively high accuracy of network proximity estimation \todo{\cite{something}}.
+\par \noindent \textbf{Embedding in $d$-dimensional space. } Each agent $i$ maintains a network coordinate $x_i$ which is an $d$-dimensional vector. Each agent $i$ periodically performs an RTT measurement with another agent $j$ and also fetches the current network coordinate of agent $j$, which we denote as $x_j$. By using the measured actual RTT $rtt_{i,j}$ between itself and the other agent $j$, the given agent $i$ updates its own network coordinate so as to reduce the error of latency estimation. To do so, agent $i$ first calculates the error in latency estimation, as shown in \cref{eq:rtt_err}.
+\begin{equation}
+e = rtt_{i,j} - || x_i - x_j ||
+\label{eq:rtt_err}
+\end{equation}
+Each iteration of this coordinate update process at agent $i$ aims at applying a force on $x_i$ so as to move it toward its correct position in the $d$-dimensional space. In other words, if the error calculated in \cref{eq:rtt_err} is positive, $x_i$ would be pushed away from $x_j$, otherwise it will be pulled closer to $x_j$. This notion is captured in \cref{eq:nc_force}, which computes the unit vector of the force to be applied to $x_i$.
+\begin{equation}
+dir = u \left( x_i - x_j \right) 
+\label{eq:nc_force}
+\end{equation}
+The force that needs to be applied to coordinate $x_i$ is in the direction of the unit vector in \cref{eq:nc_force} and has the magnitude proportional to the error in \cref{eq:rtt_err}. $x_i$ is then updated in the direction of the force by a small and configurable amount.
+\begin{equation}
+x_i = x_i + \delta \cdot e \cdot dir 
+\label{eq:nc_update}
+\end{equation}
+
+\par \noindent \textbf{Capturing Access Link Delays. } A number of hosts connected to the Internet today do so behind access links. While the $d$-dimensional Euclidean space is good at modeling latencies in the Internet core, incorporating a scalar $height$ component in the network coordinate significantly improves the network RTT estimation error \cite{vivaldi}. The height component represents the network latency incurred to traverse the access link beyond which latencies can be estimated using the Euclidean coordinate system. The estimated RTT between two agents $i$ and $j$ with combined network coordinates $\left( x_i, height_i \right)$ and $\left( x_j, height_j \right)$ respectively is given by $|| x_i - x_j || + height_i + height_j$. This equation captures the fact that for packets to travel from agent $i$ to $j$, they first have to traverse the access link of agent $i$, travel through the Internet core toward agent $j$ (which can be modeled using Euclidean distance), and then traverse the access link of agent $j$. 
+
+\par \noindent \textbf{Reducing Errors due to Triangle Inequality Violations. } Internet topologies frequently violate the triangle inequality which should ideally hold in a Euclidean space. The triangle inequality requires that the sum of the RTT between agents $i$ and $j$ and that between agents $j$ and $k$ should be greater than the RTT between agents $i$ and $k$. This is violated in real-world network topologies because of heterogeneous routing policies \footnote{\todo{Zheng, Han, et al. "Internet routing policies and round-trip-times." International Workshop on Passive and Active Network Measurement. Springer, Berlin, Heidelberg, 2005.}}. However, Lee et al. \cite{lee2009suitability} found that such violations occur more frequently  among nodes that are at closer network distances from one another. Hence, they introduce a scalar $adjustment$ term in the network coordinate to account for the non-Euclidean effect due to triangle-inequality violations. The adjustment term is calculated as shown in \cref{eq:adjustment}, where $n$ represents the number of measurements taken.
+\begin{equation}
+adj_i = \dfrac{1}{2} \cdot \dfrac{\sum_{j} rtt_{i,j} - || x_i - x_j ||}{n}
+\label{eq:adjustment}
+\end{equation}
+
+\par We employ a popular decentralized network coordinate protocol, Vivaldi \cite{vivaldi} with some enhancements proposed by Ledlie, et al.~\cite{ledlie2007network} and Lee, et al.~\cite{lee2009suitability}. Prior art has shown that NC protocols provide efficient, accurate, and stable latency estimates in the wild~\cite{ledlie2007network}.
+
+\subsection{Evaluations of Candidate Design Choices} 
+We evaluate the performance of the candidate design choices for implementing the network proximity estimation mechanism and present the results in this section.
+
+\subsubsection{Accuracy of Network RTT Estimation}
+\label{sec:nw_rtt_error}
+The network proximity estimation mechanism is expected to accurately estimate network RTT between agents in a real-world geo-distributed infrastructure topology. We use the topology of Edge sites belonging to Alibaba Edge Node Service \cite{}, which has sites deployed all across mainland China. The dataset provides city-level location of Edge sites along with the actual network RTT between them. In this experiment, in addition to evaluating the error of RTT estimation, we also intend to study how the scale of the infrastructure topology affects the error. We build infrastructure topologies of increasing scale by selecting the top-k cities with the most edge sites and only considering the sites in those cities. Each site runs an agent of the network proximity mechanism, and communicates with potentially every other Edge site to collect RTT and update its network proximity model.
+\par \cref{fig:nw_coord_error} shows the evolution of the error in RTT estimation over time for network topologies of increasing scale. The root-mean squared error of latency estimation does increase with an increase in the scale of the network topology, but it converges at around 4.5ms in RTT estimation, which is a reasonable error rate given the variance in ground-truth latency measurements. We don't evaluate the pairwise measurements based approach for network proximity estimation, because it would always result in very high accuracy. This is because the design choice would perform measurement of actual network RTT between all pairs of nodes and thus would be able to provide highly accurate RTT estimates to the control-plane policies.
+\begin{figure}
+\centering
+\includegraphics[width=0.75\linewidth]{figures/design_space/nw_prox/error.png}
+\caption{Evolution of error in RTT estimation for the network coordinate-based design. The figure shows the RTT estimation error for network topologies of increasing scale.}
+\label{fig:nw_coord_error}
+\end{figure}
+
+\subsubsection{Communication Overhead}
+We now evaluate the amount of communication that needs to happen between the agents of the network proximity estimation mechanism in order to build a reasonably accurate inter-agent network RTT estimation model. We compare the number of messages that need to be communicated between the agents for both the pairwise measurement and network coordinate based designs of the mechanism. 
+\par For this experiment, we intend to evaluate network topologies of much larger scale than the Alibaba Edge Node Service topology used in \cref{sec:nw_rtt_error}. We adopt a hub-and-spoke model for generating a synthetic topology for this experiment, with each spoke having a network latency uniformly sampled between 10 and 60 ms. We choose such a model for building the topology because it offers a simple way to model random network characteristics between different pairs of nodes. Each node in the topology runs an agent of the network proximity estimation mechanism. The number of nodes in the topology is varied to evaluate the design choices at different scales.
+\begin{figure}
+\centering
+\includegraphics[width=0.75\linewidth]{figures/design_space/nw_prox/comm_overhead.png}
+\caption{Communication overhead of the two design choices for network proximity estimation mechanism. The pairwise measurement based design requires $O \left( n^2 \right)$ communication rounds, whereas the network coordinates based approach scales almost linearly.}
+\label{fig:comm_overhead}
+\end{figure}
+
+\par \cref{fig:comm_overhead} shows the number of communication rounds that need to take place (over all nodes combined) before the network proximity estimation mechanism's error falls below a threshold. The pairwise measurement approach needs to measure the network latency between all pairs of nodes, meaning that it requires $N \left( N - 1 \right)$ rounds of communications, which grows quadratically with increasing number of nodes. On the other hand, the network coordinates approach grows almost linearly, because it only tries to embed nodes in a high-dimensional space based on a small set of measurements. Hence, the network coordinates based approach is a more scalable design for network proximity estimation.
+
+\subsubsection{Size of Network Proximity Repository}
+Control-plane policies would frequently query the centralized repository of network proximity estimation to obtain the RTT between a pair of agents. A large metadata would mean that the query would take longer to execute, hence, reducing the speed of control-plane policy execution. We compare the amount of metadata to be stored for the two design choices. 
+
+\begin{figure}
+\centering
+\includegraphics[width=0.75\linewidth]{figures/design_space/nw_prox/metadata_size.pdf}
+\caption{Comparison of the size of network-proximity metadata that needs to be stored at the control-plane.}
+\label{fig:metadata_size}
+\end{figure}
+
+\par \cref{fig:metadata_size} shows how the metadata size grows with increasing number of agents. Since the pairwise measurements based design would need to store the network latency for each pair, the size of the metadata grows quadratically. However, the metadata for the network coordinates based approach consists of one coordinate per agent, which amounts to 44 bytes and grows linearly.
+
+\subsection{Running Network Coordinate Agents on Mobile Clients}
+\todo{Fill in this section with Edge Gateway and Height concepts}
+
+\todo{Should we mention Serf over here ?}
+
+
+
+\section{Distributed End-to-End Monitoring}
+\begin{itemize}
+\item The data-plane of applications using a platform service usually comprises multiple components, with each component performing a specific action, and incurring latency. The latency incurred by each such component adds toward the end-to-end latency of the application, which is that the developer of the application cares about.
+\item Hence, the end-to-end monitoring mechanism aims to provide the ability to monitor the end-to-end latency of the data-plane for a variety of applications running on different platform services.
+\item We propose to do so by measuring all individual component latencies individually. The collected metrics are then aligned with respect to time using their timestamps and summed up to compute the end-to-end latency.
+\item The end-to-end latency estimate can then be used to check whether the constraints specified by developer have been violated. 
+\item In the case of detecting a violation, the metrics of individual components is to be used for performing a root-cause analysis to detect the component latency which is resulting in the violation.
+\end{itemize}
+
+\subsection{Logical Components in the Monitoring Mechanism}
+\label{sec:monitoring_logical}
+\begin{figure}
+\centering
+\includegraphics[width=\linewidth]{figures/design_space/monitoring/functions.pdf}
+\caption{Logical components in the end-to-end monitoring mechanism and their interactions.}
+\label{fig:monitoring_functions}
+\end{figure}
+\cref{fig:monitoring_functions} shows the logical functions that we propose as a part of the end-to-end monitoring mechanism. These functions perform all the necessary actions that are needed by typical platform services in order to continuously serve applications' desired quality of service.
+\subsubsection{Metrics Emitter}
+The Metrics Emitter component represents the platform service component generating measurements for a metric. The Metric Emitter could be the client library on a certain client device, an application instance running on an Edge site or a platform service component. 
+\subsubsection{Per-Metric Aggregation}
+The Metrics Emitter generates raw measurements, which are processed by the Per-Metric Aggregation function, that time-aligns the metric measurements while performing an aggregation as well to reduce the data volume. The output of the per-metric aggregation component is a stream of time-aligned measurement values which are emitted at regular intervals. The time interval between two consecutive measurements emitted by the per-metric aggregation component is equal to the bucket-size for the time-alignment. The timestamp associated with each aggregated time-aligned measurement values in the output stream is the start timestamp of the bucket.
+
+\subsubsection{Multi-Metric Aggregation}
+The Multi-Metric Aggregation function takes multiple time-aligned metrics at a particular timestamp as input and runs a platform-specific function to generate a value for that timestamp. 
+
+\subsubsection{Policy Execution}
+The control-plane policies then read the aggregated statistics generated by multi-metric aggregation as well as the time-aligned metrics to make decisions such as whether a certain application instance is undergoing performance violation and subsequently determining the root-cause of the violation.
+
+\subsection{Design of the core components of end-to-end monitoring mechanism}
+\subsubsection{Metrics Agent}
+The Metrics Agent component is the one that is deployed alongside application and platform service components that need to be monitored, and acts as the interface between these components and the monitoring system. It is deployed as part of the client library or the application runtime or as a side-car of the platform service components. It provides interfaces for application and platform service components to register metrics and record observations for those metrics. 
+
+\subsubsection{Metrics Server}
+The Metrics Server is the component that holds the metrics reported by the various Metrics Agents. The Metrics Server serves two main functions - (i) it acts as a store for time-series measurement values, and (ii) an execution runtime for the aggregation and policy functions as discussed in \cref{sec:monitoring_logical}. 
+\par The Metrics Server provides an interface similar to a Time-Series Data Base (TSDB). The Metrics Server provides a relational schema for defining metrics and their associated metadata. Having a relational schema also allows aggregation and policy logic to express queries based on metadata fields. The Metrics Server supports high-velocity ingestion of observations, and efficient querying including querying metric values from the past.
+\par The Metrics Server supports platform-specific functions to be executed over the monitoring data that is stored in its data store. It allows the aggregation and policy functions to query metrics using their metadata fields. Once the identifier for a particular metric is known, the Metrics Server allows queries to fetch most recent as well as historical measurements recorded for that metric.
+
+\subsection{Design Choices}
+We explore three design choices for organizing the logical functions discussed in \cref{sec:monitoring_functions} over a geo-distributed infrastructure. We enumerate the design choices in the following.
+
+\subsubsection{Fully Centralized Approach}
+In the fully centralized approach, all of the monitoring functionalities, ranging from the Per-Metric Aggregation to the Policy Execution are hosted in the Cloud. In this approach, the metrics are emitted by Metric Emitters located at the Edge within Metrics Agents, and the raw measurements traverse through the WAN to get to the following functions. 
+
+\subsubsection{Distributed Approach 1}
+In this approach, the Metric Emitters are located within Metrics Agents, which is same as the centralized approach. In addition to that, the Per-Metric Aggregation function for a given metric is co-located with the Emitter for that metric. In this way, raw measurements are not sent through the WAN, rather it is the time-aligned metric stream that is sent to the Cross-Metric Aggregation function. This approach is able to work on a large scale because the properties of the Per-Metric Aggregation function, such as bucket size, does not change frequently.
+
+\subsubsection{Distributed Approach 2}
+This approach is a variant of the Distributed Approach 1, wherein, the Cross-Metric Aggregation component is also moved to the Edge. Typical control-plane policies such as violation detection operate independently on a specific unit of the application, such as a specific application pipeline instance or publish-subscribe topic. Hence it is possible to host multiple instances of cross-metric aggregation component for different application units at multiple Metrics Servers running on the Edge. All the metrics corresponding to a specific application unit will need to be sent to the Metric Server that hosts that application unit's cross-metric aggregation function. 
+
+\subsection{Metrics of Interest}
+We consider the following metrics of interest for quantifying the \textit{goodness} of the various design choices for implementing the end-to-end monitoring mechanism.
+\begin{itemize}
+\item \textbf{Monitoring Traffic through WAN. } The large number of application and platform-service entities continuously processing data and generating performance metrics would present a large volume of data to be fed into the monitoring system. The amount of traffic sent through the WAN needs to be minimized for the mechanism to be scalable.
+\item \textbf{Response Time to Violation. }The time taken by the monitoring subsystem (including the Policy) to detect a significant change in a metric defines the responsiveness of the platform service to alleviate a potential violation. Hence, we intend to minimize the response time of the monitoring mechanism to detect a violation.
+\item \textbf{Resource Requirements of Metrics Server. } The CPU and memory usage of the monitoring components need to be low so that instances of Metrics Agents and Metrics Servers can be hosted on Edge resources. A high resource requirement would mean that resources that could have been used for the data-plane of platform services would need to be devoted to monitoring, which would result in worse utilization of scarce Edge resources.
+\end{itemize}
