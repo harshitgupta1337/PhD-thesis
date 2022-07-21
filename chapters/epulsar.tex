@@ -46,7 +46,7 @@ In addition to the correctness of sending and receiving messages that are provid
 \subsubsection{Clients}
 Clients are geo-distributed and each client is a publisher or a subscriber of a unique topic. A publisher sends messages to the broker hosting its topic, while a subscriber receives messages published to its topic as notifications.
 \subsubsection{Brokers}
-Brokers are the components of any publish-subscribe system responsible for message exchange between producers and consumers. In \epulsar, brokers are deployed in geo-distributed edge sites. Brokers are also associated with another software component called BookKeeper, which acts as the high-performance storage layer. BookKeeper nodes, called \textit{bookies}, persist messages for each topic so that older messages can be retrieved in the event of a broker failure or broker migration \todo{When exactly is a persistent topic necessary?}. 
+Brokers are the components of any publish-subscribe system responsible for message exchange between producers and consumers. In \epulsar, brokers are deployed in geo-distributed edge sites. Brokers are also associated with another software component called BookKeeper, which acts as the high-performance storage layer. BookKeeper nodes, called \textit{bookies}, persist messages for each topic so that older messages can be retrieved in the event of a broker failure or broker migration 
 \subsection{Control Plane Components}
 \subsubsection{Metrics Store}
 The Metrics Store receives monitoring metrics from clients and brokers pertaining to resource consumption of brokers, message rates on topics and communication latency between clients and brokers. This monitoring data is accessed by the control-plane for making dynamic topic placement decisions through the broker selection and violation detection policies, which are described next.
@@ -62,7 +62,7 @@ As shown in \cref{fig:e2e_latency_breakdown}, the end-to-end message delivery la
 
 \subsubsection{Violation Detection Policy}
 The violation Detection Policy of \epulsar{} is used to check whether an existing topic in the publish-subscribe system has its end-to-end message delivery latency constraint violated. This computation is done for each topic independently. Since publisher and subscriber clients of a topic can be connected at different points in the network topology, the worst-case message delivery latency is incurred for the publisher-subscriber pair that are the furthest from the broker. Thus, all possible publisher-subscriber pairs have to be analyzed to check for violations.
-\par The worst-case message delivery latency for a topic is the sum of the maximum network latency from any publisher to the broker, the maximum network latency from the broker to any subscriber, and the per-message processing latency on the broker. The worst-case message delivery latency of a topic is compared against the topic-specific threshold, and if the observed latency exceeds the threshold, a violation is detected, and a reconfiguration action is triggered.
+\par The worst-case message delivery latency for a topic is the sum of the maximum network latency from any publisher to the broker, the maximum network latency from the broker to any subscriber, and the per-message processing latency on the broker. The worst-case message delivery latency of a topic is compared against the topic-specific threshold, and if the observed latency exceeds the threshold, a violation is detected, and the control-plane triggers the migration of the topic to another broker that can meet the latency requirement.
 %The first two components is calculated using the clients' network coordinates, while the processing latency is estimated by using a profile of the broker's data-plane through offline profiling.
 \subsection{Use of Proposed Mechanisms in Control Plane}
 \epulsar{}'s control plane utilizes the Network Proximity mechanism to estimate the worst-case message delivery latency for a given topic. This mechanism is able to estimate the communication component of the message delivery latency, while \epulsar{} relies on the an offline profile of its broker for estimating the processing latency. This mechanism is used both for determining whether a particular candidate broker will be able to satisfy the worst-case message delivery latency constraint, given the network proximity information between the clients and the candidate broker. The Network Proximity mechanism is also used for detecting a violation of the worst-case message delivery latency constraint. The clients' network proximity to the current serving broker is used to compute the observed worst-case message delivery latency, which is then compared against the topic-specific threshold.
@@ -109,14 +109,14 @@ To be able to estimate the network latency between every client and broker pair 
 \end{table}
 
 \subsection{Broker Selection Policy}
-The set of publishers and subscribers for a topic $t$ is denoted by $P \left( t \right)$ and $C \left( t \right)$ respectively. The worst-case message delivery latency for topic $t$ is represented as shown in \cref{eq:e2e_latency}.
+The set of publishers and subscribers for a topic $t$ is denoted by $P \left( t \right)$ and $C \left( t \right)$ respectively. The worst-case message delivery latency for topic $t$ when served by broker $b$ is represented as shown in \cref{eq:e2e_latency}.
 \begin{equation}
-\max\limits_{p \in P\left( t \right)} d \left( NC \left( p\right), NC \left( b\right) \right) + \max\limits_{c \in C\left( t \right)} d \left( NC \left( c\right), NC \left( b\right)\right) + PROC \left( t \right)
+W\left( t, b \right) = \max\limits_{p \in P\left( t \right)} d \left( NC \left( p\right), NC \left( b\right) \right) + \max\limits_{c \in C\left( t \right)} d \left( NC \left( c\right), NC \left( b\right)\right) + PROC \left( t \right)
 \label{eq:e2e_latency}
 \end{equation}
-
+\cref{eq:e2e_latency} is used the broker selection policy to estimate the worse-case message delivery latency that a given broker can provide for a given topic. The broker selection policy is shown in \cref{algo:broker_sel_algo}. For each topic that needs to be placed on a broker, the policy find the set of candidate brokers that can satisfy the message delivery latency constraint (line 3-4). Next, the policy ranks the topics in increasing order of the number of possible candidates for each topic and starts broker selection in that order (lines 5-6). The aim of the policy is to perform as many successfully place as many topics as possible. Next, if a particular broker can host a given topic without being overloaded, the topic is assigned to that broker (lines 7-9). 
 \begin{algorithm}
-\caption{Broker selection policy algorithm. Inputs are $T$ (set of topics to place on brokers) and $M$ (monitoring data)}\label{broker_sel_algo}
+\caption{Broker selection policy algorithm. Inputs are $T$ (set of topics to place on brokers) and $M$ (monitoring data)}\label{algo:broker_sel_algo}
 \begin{algorithmic}[1]
 \Procedure{SelectBroker}{$T, P, M$}
 \State $F \gets dict\left(\right)$
@@ -137,12 +137,10 @@ The set of publishers and subscribers for a topic $t$ is denoted by $P \left( t 
 \end{algorithmic}
 \end{algorithm}
 
-- \todo{Add equations and algorithm for broker selection}
-
 \subsection{Violation Detection Policy}
-\todo{Add content about the violation detection policy}
+The Violation Detection Policy is called periodically, which iterates over all the topics currently in the system and checks if any one of them is violated (lines 4-5). If a topic is experiencing end-to-end latency violation, it is added to the set of topics that need to be migration to a better broker (line 6). Next the policy checks if any broker is overloaded due to too many topics (line 7). In case there is a broker which is overloaded, the policy fetches the topics which are best candidates for migrating out of the overloaded broker (line 9), and adds it to the set of topics to be migrated. Then the policy calls the topic-placement module which uses \cref{algo:broker_sel_algo} for selecting the target broker for hosting each topic (line 11). If the chosen target broker is not the same as the current broker, topic migrations are triggered (lines 14-16).
 \begin{algorithm}
-\caption{Violation Detection Policy algorithm. \todo{Add inputs to the algo}}\label{viol_detection_algo}
+\caption{Violation Detection Policy algorithm. Inputs are $P_0$ (initial topic partitioning) and $M$ (monitoring data)}\label{viol_detection_algo}
 \begin{algorithmic}[1]
 \Procedure{PerformRepartitioning}{$P_0$, $M$}
 \State $R \gets \{\}$ \Comment{set of migration commands}
@@ -195,22 +193,17 @@ The set of publishers and subscribers for a topic $t$ is denoted by $P \left( t 
 \end{equation*}
 \item \textbf{Worst-case End-to-end Latency.} For each topic $t$, we compute the worst-case pub-sub latency across all producer-consumer pairs. We denote this as $E \left( t \right)$ and it is computed as follows. 
 \begin{equation*}
-\max\limits_{p \in P\left( t \right)} d \left( NC \left( p\right), \overline{NC}\left( P\left[ t \right] \right) \right) + \max\limits_{c \in C\left( t \right)} d \left( NC \left( c\right), \overline{NC}\left( P\left[ t \right] \right) \right) 
+\max\limits_{p \in P\left( t \right)} d \left( NC \left( p\right), NC\left( P\left[ t \right] \right) \right) + \max\limits_{c \in C\left( t \right)} d \left( NC \left( c\right), NC\left( P\left[ t \right] \right) \right) 
 \end{equation*}
 This information is used to determine whether the current broker, denoted by $P\left[ t \right]$ is meeting the topic's end-to-end pub-sub latency threshold.
 \end{itemize}
 
-\par One key point to take note of is that the volume of per-topic monitoring data generated is independent of the number of clients using that topic. Given the high heterogeneity of broker and client network locations in a geo-distributed setting, this aggregation technique significantly reduces monitoring data traffic. By contrast, a naive approach which records the network coordinates of all clients would incur network traffic proportional to the number of clients of each topic.
-
-- \todo{Add equations about the aggregation functions}
-- \todo{Describe how the above policies are updated in the presence of distributed monitoring}
+\par One key point to take note of is that the volume of per-topic monitoring data generated is independent of the number of clients using that topic. Given the high heterogeneity of broker and client network locations in a geo-distributed setting, this aggregation technique significantly reduces monitoring data traffic. By contrast, a naive approach which records the network coordinates of all clients would incur network traffic proportional to the number of clients of each topic. However, the monitoring data does not contain individual client network coordinates anymore, but rather the centroids of producer and consumer clients' network coordinates. Hence, \cref{eq:e2e_latency} in the Broker Selection Policy needs to be updated to use centroid coordinates as shown in \cref{eq:e2e_latency_w_centroids}.
 \begin{equation}
+\label{eq:e2e_latency_w_centroids}
 W \left( t, b\right) = d \left( \overline{NC_P} \left( t \right), NC \left( b \right) \right) + d \left( \overline{NC_C} \left( t \right), NC \left( b \right) \right) + W \left( t \right) 
 \vspace{-0.05in}
 \end{equation}
-
-\section{Topic Migration}
-\todo{Where should we add content about Topic Migrations?}
 
 \section{Implementation of \epulsar{}}
 \label{sec:epulsar_impl}
