@@ -625,8 +625,114 @@ For each client undergoing latency SLO violation, as detected by the violation d
 \item If the violation is due to processing latency of worker $w$ which is not spatially constrained, then \oneedge{} tries to migrate a portion of the clients connected to $w$ to another pipeline instance so as to reduce the compute workload on $w$.
 \item If the violation is due to processing latency on a spatially constrained worker $w$, then \oneedge{} triggers a split operation for the tile corresponding to $w$, resulting in a division of clients connected to $w$ into two different pipeline instances.
 \end{itemize}
+
 \section{Implementation}
+All the system components of \oneedge{} have been implemented using C++ and tested on Ubuntu 18.04. The communication between the system components has been implemented using ZMQ, while the serialization and deserialization of messages has been done using Google Protobuf library. The Container Runtime used on the Edge sites is Docker. All application workers are instantiated on Edge sites as a Docker container running with an application-specific image. The application-specific image is built on top of a base worker image which packages the Container Agent and its dependencies, such as ZMQ and Protobuf. The application-specific image contains the specific binary of the application logic, which is dynamically linked into the Container Agent. The Controller is implemented as a centralized entity, which maintains aggregate state in a Mongo DB database. 
 
 \section{Evaluations}
+We evaluate \oneedge{} to test the following hypotheses.
+\begin{itemize}
+\item \oneedge{} is able to use the network proximity estimation mechanism to perform latency-sensitive application placement. The placement done by \oneedge{} is cognizant of scarce Edge resources as well and only places the latency-sensitive components on the Edge.
+\item \oneedge{} effectively uses distributed monitoring mechanism to detect violations of data staleness constraint due to client mobility in a timely manner. \oneedge{}'s root-cause analysis policy is able to identify the source of violation and trigger a migration to alleviate it.
+\item \oneedge{} uses the dynamic spatial context management mechanism to perform application placement ensuring perfect spatial alignment. In the event of workload surge at a particular application worker, the monitoring mechanism is able to detect the violation of data-staleness constraint and trigger workload partitioning. 
+\end{itemize}
 
+\subsection{Experimental Workload}
+We use two situation-awareness applications as the driving workload for evaluations. 
+\begin{itemize}
+\item \textbf{Drone: } This application performs collaborative mapping of 3D space by a swarm of UAVs. The application contains logic for immediate-term control of the movement of each UAV (which is latency-sensitive), along with the stitching together of maps from individual UAVs (which is latency-tolerant). It is based on the work of Samira Haya et al. \cite{dronenavi} and Alex Zihao Zhu et al. \cite{dronenavi1}. It uses inputs from a camera and an inertial measurement unit (IMU) to determine the pose and location of the drone, using a type of extended Kalman-filter algorithm. The drone application's pipeline comprises three stages: 
+\begin{enumerate}
+\item Feature tracking and detection from the IMU and cameras inputs.
+\item Pose state estimation from the features extracted (update).
+\item Updating the global map created by merging information from multiple drones in the swarm.
+\end{enumerate}
+For our evaluations, we use a dataset generated using the ROS~\cite{ros} framework for both the inputs of the camera and IMU ~\cite{dronedataset}. To model the mobility of the drones (each drone operates independently), we use the Luxembourg City vehicle mobility dataset \cite{lust}, associating individual car mobility with that of a drone. 
+
+\item \textbf{View-Fuse.} This is the collaborative perception application for autonomous driving, based on Zijian Zhang et al. \cite{mapfusionimpl}. This application fuses the objects detected by multiple autonomous vehicles from their respective fields of view to create an expanded world sub-regional view (\Cref{fig:connected_cars_with_slo}), which is then sent back to the vehicles in the same geographical locale to improve collision avoidance decisions. To create a mockup of this application for our evaluation purposes, we first created a dataset using Carla~\cite{carlasim}. Specifically, we used 80+ cars driving through the most complex map directly available in Carla (called Town3). A 15-minute Carla simulation produces a spatio-temporal dataset consisting of object detections by individual vehicles. 
+\end{itemize}
+We run both the applications against the input dataset and profile the execution time of each component. Tables \cref{table:drone_profile} and \cref{table:mapfusion_profile} show the compute profile of different components the Drone and View-Fuse application respectively that we will be using for this evaluation study.
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{||c | c | c | c | c | c ||} 
+ \hline
+ Component & Maximum & Mean Processing  & CPU Req. & Memory Req. & Latency  \\
+ & Clients & Latency & & & Threshold \\
+ \hline\hline
+ Global Map & 8 & 50 ms & 4 & 2 GB & - \\
+ Update & & & & & \\
+ \hline
+ Pose & 8 & 35 ms & 3 & 1.5 GB & 50 ms \\ 
+ Estimation & & & & & \\
+ \hline
+ Feature Tracking & 8 & 2 ms & 1 & 512 MB & - \\
+ \& Detection & & & & & \\
+ \hline
+ Client & - & 1 ms & - & - & - \\
+ Component & & & & & \\
+ \hline
+\end{tabular}
+\caption{Drone application's compute profile.}
+\label{table:drone_profile}
+\end{table}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{||c | c | c | c | c | c ||} 
+ \hline
+ Component & Maximum & Mean Processing  & CPU Req. & Memory Req. & Latency  \\
+ & Clients & Latency & & & Threshold \\
+ \hline\hline
+ Fusion & 16 & 60 ms & 4 & 2 GB & 100 ms \\
+ \hline
+ Filter & 1 & 5 ms & 2 & 1 GB & - \\ 
+ \hline
+ Detection & - & 20 ms & - & - & - \\
+ (on Client) & & & & & \\
+ \hline
+\end{tabular}
+\caption{MapFusion application's compute profile.}
+\label{table:mapfusion_profile}
+\end{table}
+\todo{Add info about Edge sites and Cloud datacenter}
+
+\subsection{Evaluation Platform}
+In this dissertation, we are concerned about the quality of control-plane decisions taken by \oneedge{} with the aid of the proposed mechanisms. In order to perform large-scale evaluations of the control-plane decisions, we rely on discrete-event simulation of the \oneedge{} platform, the clients and Edge infrastructure. The simulation has been created using SimPy \cite{simpy}. All delays in the system, such as network traversal latency, computation latency, control-plane decision-making latency, etc. have been profiled from the implementation of \oneedge{} and plugged into the simulated environment so that it faithfully represents the real-world.
+
+\subsection{Evaluation Results}
+
+We evaluate the control-plane of \oneedge{} with a workload that contains a variable number of clients of the two applications. 
+
+\par \noindent \textbf{Application Placement Policy Evaluation. }We first compare the goodness of its latency-sensitive application placement approach against a greedy placement approach.  The greedy baseline places all the application components -- latency sensitive or not  -- on Edge resources, which would deplete them in the event of increasing client activity. We perform this experiment under stringent Edge capacity scenarios, with each Edge site having a capacity of 64, 128 and 256 cores respectively. For this evaluation, we restrict the client workload to include only clients of the Drone application, because it is the only application with a latency-tolerant component. The number of clients is varied from 16 to 512, and we monitor the observed end-to-end latency at the Pose Estimation component (see \cref{table:drone_profile}). 
+\begin{figure}[ht]
+  \centering
+    \includegraphics[width=0.8\columnwidth]{figures/oneedge/violations_wrt_greedy_vs_num_clients.png}
+    \caption{\todo{}.}
+    \label{fig:oneedge_placement}
+\end{figure}
+\cref{fig:oneedge_placement} shows the fraction of clients that face SLO violations due to the depletion of Edge resources for the two evaluated placement policies. For each Edge site CPU capacity, the Greedy placement policy results in client violation with fewer number of clients than the SLO-Aware placement policy. Scenarios with non-zero fraction of clients with SLO violations are those in which the capacity at the Edge sites has been depleted and subsequent application instances are deployed in the Cloud datacenter. Furthermore, intuitively, this depletion of Edge site capacity occurs with a higher number of clients as the Edge site capacity is increased. Therefore, we can prove evaluation hypothesis 1, which states that the placement policy of \oneedge{} is able to perform SLO-aware application placement, while also judiciously using scarce Edge resources only for latency-sensitive components.\\
+
+\par \noindent \textbf{Alleviating Client-mobility-driven Violations.} We now show the behavior of observed data-staleness (end-to-end latency) at the Pose Estimation application component of the drone application in \cref{fig:drone_latencies}. The initial placement of the application components by \oneedge{}'s placement algorithm is such that the latency constraint of the Pose Estimation component is satisfied. However, over time as the drones move in the city, they enter the coverage area of a different Edge site than the one currently serving it. This results in an increase in the communication latency to the running application component instances, resulting in a violation of the latency constraint. 
+\begin{figure}[ht]
+  \centering
+    \includegraphics[width=0.8\columnwidth]{figures/oneedge/drone_latencies.png}
+    \caption{Variation of the observed data staleness at the Pose Estimation component of the Drone application over time. Only a few representative clients, that undergo mobility-driven violation have been shown for clarity. The latency threshold for the Pose Estimation component has been marked by the horizontal dashed line.}
+    \label{fig:drone_latencies}
+\end{figure}
+\par \oneedge{}'s violation detection policy is able to utilize the end-to-end monitoring mechanism to detect that the Pose Estimation component's latency constraint has been violated for a given client. The root-cause analysis policy isolates the source of the violation to be the network latency between the Client Component and the Feature Tracking and Detection Component. It then triggers a client migration, which maps the violated client to an application pipeline instance that can meet the latency constraint.\\
+
+\par \noindent \textbf{Continuous Spatial Alignment. } We now show how \oneedge{} is able to manage instances of spatially constrained applications while continuously providing near-perfect spatial alignment. Firstly, \oneedge{} performs application placement in a spatial-affinity-aware manner, mapping clients located in the same KD-Tree tile to the same application instance. This results in high spatial alignment values as shown in \cref{fig:mapfusion_spatial_alignment}.
+\begin{figure}[ht]
+  \centering
+    \includegraphics[width=0.8\columnwidth]{figures/oneedge/spatial_alignment_vs_time.png}
+    \caption{Spatial Alignment provided by \oneedge{}'s placement policy over time. The average spatial alignment is calculated every second by taking the average of the spatial alignment of each tile during that 1 second interval.}
+    \label{fig:mapfusion_spatial_alignment}
+\end{figure}
+Due to the natural mobility of vehicles, there are times when a large number of cars congregate in a small area, which results in more clients being served by the same Fusion component instance than expected. This causes an increase in the end-to-end processing latency at that component, resulting in a violation, as shown in \cref{fig:mapfusion_latency}. Just as for the Drone application, the violation detection policy and the root-cause analysis policy utilize the end-to-end monitoring mechanism to determine that the root-cause of the violation is compute overload on the Fusion component. \oneedge{} triggers a partitioning of the set of clients served by the overloaded component in a way that spatial alignment is maintained. The tile mapped to the overloaded Fusion component instance is split and a new instance is created. This leads to the observed latency return to being under the threshold. All points of time when such a split is carried out have been marked by vertical dashed lines in \cref{fig:mapfusion_latency}.
+\begin{figure}[ht]
+  \centering
+    \includegraphics[width=0.8\columnwidth]{figures/oneedge/mapfusion_latencies.png}
+    \caption{End-to-end latency at the Fusion component over time.}
+    \label{fig:mapfusion_latency}
+\end{figure}
 \section{Conclusion}
