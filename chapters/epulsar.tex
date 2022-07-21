@@ -1,7 +1,6 @@
 \chapter{ePulsar: Topic-based publish-subscribe system with end-to-end latency guarantees}
 \label{sec:epulsar}
 
-\section{Introduction}
 Applications such as drone control and Massively Multiplayer Online Games (MMOG) need to support large amounts of clients, retaining high throughput and low latency communication. The synchronization decoupling provided by publish-subscribe systems \cite{manyfaces, PubSubForMultiplayerGames} makes them an ideal messaging middleware for supporting these applications. Typically, pub-sub systems consist of broker \textit{middleware nodes} that are responsible for message exchange  within the system. Popular pub-sub systems such as Apache Kafka and Pulsar are commonly used for supporting low latency and high throughput messaging for datacenter applications. % For instance, publish-subscribe 
 Pub-sub systems have been shown to be suitable for sharing game state updates in MMOGs  \cite{PubSubForMultiplayerGames}, swarm synchronization for autonomous robots (drones)~\cite{flynetsim}, and data distribution for large-scale stream processing \cite{7164934}. However, contemporary applications such as MMOGs, large scale IoT, and Unmanned Aerial Vehicle (UAV) coordination pose latency constraints that make cloud-based publish-subscribe system deployments unsuitable due to the high WAN latency between clients and middleware nodes. Given the proximal nature of edge resources, they can be utilized for hosting pub-sub middleware close to clients and thereby provide low end-to-end pub-sub latency.
 \par However, adapting state-of-the-art cloud-based pub-sub systems like Kafka and Pulsar to a geo-distributed edge infrastructure poses peculiar challenges. Such systems typically are topic-based and they partition topics among brokers by computing consistent-hash of topic name. Consistent hashing ensures even distribution of load among brokers - which is key to manageable end-to-end latency in datacenters where the network topology is more or less homogeneous. However, in edge infrastructure, the physical location of a client has a significant impact on client-broker network latency, and latency-agnostic consistent hashing does not account for network proximity. In addition, client mobility requires constant adaptation of topic partitioning to continuously provide low end-to-end latency. The network infrastructure itself could experience changes (e.g., increased latency between servers) which might affect end-to-end latency. Finally, due to the capacity constraints and limited statistical multiplexing at edge sites, load-aware topic partitioning is %all the more relevant 
@@ -9,11 +8,13 @@ important to avoid workload hotspots and minimize end-to-end latency \cite{khare
 
 \par To address the above challenges, we design a novel \textit{edge-centric control plane architecture} for pub-sub systems.  The elements of this architecture include the following features
 \begin{enumerate}
-\item \epulsar leverages the network proximity estimation mechanism for its latency and load-aware broker selection policy that assigns topics to brokers. 
-\item \epulsar leverages the distributed fine-grained monitoring mechanism to monitor client and broker network proximity metrics as well as per-topic traffic characteristics and aggregates that information for each topic. The per-topic aggregates of monitoring data are then processed by control-plane policies for detecting if a topic needs to be migrated away from the current hosting broker.
+\item \epulsar leverages the Network Proximity Estimation mechanism for its latency and load-aware broker selection policy that assigns topics to brokers. 
+\item \epulsar leverages the Distributed End-to-End Monitoring mechanism to monitor client and broker network proximity metrics as well as per-topic traffic characteristics and aggregates that information for each topic. The per-topic aggregates of monitoring data are then processed by control-plane policies for detecting if a topic needs to be migrated away from the current hosting broker.
 \end{enumerate}
+The roadmap of this chapter is as follows. \cref{sec:epulsar_background} presents the necessary background for this chapter. \cref{sec:epulsar_arch} presents the architecture of \epulsar{}. \cref{sec:epulsar_nw_prox} describes how \epulsar{} uses the Network Proximity Estimation mechanism for estimating the end-to-end message delivery latency for broker selection. \cref{sec:epulsar_dist_mon} presents \epulsar's use of the Distributed End-to-End Monitoring mechanism for detecting violations of end-to-end message delivery latency. \cref{sec:epulsar_impl} presents implementation details in \epulsar{} and \cref{sec:epulsar_evals} presents results of experimental evaluation of \epulsar{}. Finally, \cref{sec:epulsar_conclusion} presents concluding remarks.
 
 \section{Basics of Publish-Subscribe}
+\label{sec:epulsar_background}
 \subsection{Publish-Subscribe Communication Model}
 The publish-subscribe communication pattern is a popular one that is used widely across the current software ecosystem \cite{}, especially when there are going to be a large number of communicating entities. In the publish-subscribe pattern, there are two classes of communicating entities for a given type of data - \textit{publishers} and \textit{subscribers}. As their name indicates, publishers generate data that is consumed by subscribers. The main motivation for using a publish-subscribe system is that it doesn't require the publishers to know who the subscribers are so that the data can be sent to them. Instead, a typical publish-subscribe system allows the subscribers to express their interest in a certain type of data, and whenever a publisher generates a data-item that matches a subscriber's interest the subscriber is notified. This data exchange is done by using a set of middleware nodes which form the core of the publish-subscribe system, and are typically called brokers. A publisher sends each data-item that it generates to a broker, which then determines the set of subscribers who should be notified of this data-item, and sends the data-item to them. By relying on brokers, a publish-subscribe system decouples the data producers and consumers. This decoupling can be categorized into three classes.
 \begin{itemize}
@@ -40,6 +41,7 @@ A typical distributed system has several communicating entities, all of which ca
 In addition to the correctness of sending and receiving messages that are provided by data delivery guarantees, emerging applications such as drone-swarm coordination, autonomous or assisted driving, etc., require that the time spent from the generation of the message, to it being received by the publish-subscribe middleware, till the time when it is received by all the relevant subscribers should be low and bounded. The message delivery latency is composed of (1) communication latency from the publisher to the publish-subscribe middleware, (2) latency incurred in processing and persisting the message on the middleware, and (3) communication latency from the middleware to the subscribers. In a typical scenario, multiple publishers communicate with multiple subscribers, hence the message delivery latency guarantee has to be satisfied for all possible pairs of publishers and subscribers.
 
 \section{Architectural Components of ePulsar}
+\label{sec:epulsar_arch}
 \subsection{Data Plane Components}
 \subsubsection{Clients}
 Clients are geo-distributed and each client is a publisher or a subscriber of a unique topic. A publisher sends messages to the broker hosting its topic, while a subscriber receives messages published to its topic as notifications.
@@ -64,7 +66,9 @@ The violation Detection Policy of \epulsar{} is used to check whether an existin
 %The first two components is calculated using the clients' network coordinates, while the processing latency is estimated by using a profile of the broker's data-plane through offline profiling.
 \subsection{Use of Proposed Mechanisms in Control Plane}
 \epulsar{}'s control plane utilizes the Network Proximity mechanism to estimate the worst-case message delivery latency for a given topic. This mechanism is able to estimate the communication component of the message delivery latency, while \epulsar{} relies on the an offline profile of its broker for estimating the processing latency. This mechanism is used both for determining whether a particular candidate broker will be able to satisfy the worst-case message delivery latency constraint, given the network proximity information between the clients and the candidate broker. The Network Proximity mechanism is also used for detecting a violation of the worst-case message delivery latency constraint. The clients' network proximity to the current serving broker is used to compute the observed worst-case message delivery latency, which is then compared against the topic-specific threshold.
+
 \section{End-to-End Latency Estimation using Network Proximity Mechanism}
+\label{sec:epulsar_nw_prox}
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.75\columnwidth]{figures/epulsar/nw_coord_latency.png}
@@ -170,6 +174,7 @@ The set of publishers and subscribers for a topic $t$ is denoted by $P \left( t 
 \end{algorithm}
 
 \section{Distributed Monitoring in ePulsar}
+\label{sec:epulsar_dist_mon}
 \subsection{Distribution of Monitoring Components over Infrastructure}
 \epulsar{} performs monitoring of the network coordinates of clients and broker as well as the message rate of each topic on the broker that is hosting the topic. Since all the relevant metrics of a given topic are present on the broker itself, it can aggregate the topic's metrics to reduce the amount of data that needs to be sent to the Metrics Store via the wide-area network.
 
@@ -204,19 +209,18 @@ W \left( t, b\right) = d \left( \overline{NC_P} \left( t \right), NC \left( b \r
 \vspace{-0.05in}
 \end{equation}
 
-\section{Additional Edge-Centric Optimizations}
-\todo{Should we add this section at all ?}
-
 \section{Topic Migration}
 \todo{Where should we add content about Topic Migrations?}
 
 \section{Implementation of \epulsar{}}
+\label{sec:epulsar_impl}
 \epulsar{} is implemented by extending Apache Pulsar v2.2.1. We chose Pulsar as the base system because of the strong data-plane semantics that it offers and topic migrations are much more agile than in Apache Kafka. However, Pulsar, like Kafka, is designed for datacenters and bundles topics together for monitoring and placement on brokers. This bundling is done for reducing the amount of metadata is has to maintain. \epulsar{} needs to independently manage each topic, and hence, we restrict the maximum number of topics in a bundle to be 1. When more than one topics are mapped to a bundle, it results in the bundle being split into two new bundles, each with one topic. By keeping the concept of bundles from Pulsar, \epulsar{} is able to re-use the bundle-centric monitoring and broker selection in Pulsar, while still achieving per-topic independent management.
 \par The control-plane policies of broker selection and violation detection are implemented in the Load Manager module of Pulsar. We replace the off-the-shelf Load Manager of Pulsar, which aims at even distribution of workload and prevention of hotspots, with an edge-centric implementation that takes communication latency into account as well. \epulsar{} inherits from Pulsar the use of a ZooKeeper instance as the Metrics Store, which is also used for storing configuration information about the system, e.g., topic ownership for each broker, cluster membership, etc. The monitoring data is queried by the Load Manager module periodically every 5 seconds to detect violations and compute better brokers for topics which are undergoing latency constraint violation.
 
 \par Brokers in \epulsar{} run at Edge sites along with cloud datacenters. The control-plane component of Pulsar, i.e., Load Manager, runs in one of the brokers at a time, which serves as the Leader broker of the cluster. In \epulsar{} the Leader broker is forced to be one which is deployed in a datacenter for better availability. Hence, \epulsar{} has a centralized control-plane located in a cloud datacenter. The ZooKeeper instance which serves as the Metrics Store is co-located in the same datacenter as the Leader broker running the Load Manager module. Clients connect to the publish-subscribe infrastructure via various access media, e.g., cellular (4G LTE), WiFi or wired networks. All entities in the publish-subscribe system, including brokers and clients periodically (every 5 seconds) query their network coordinate, either from the Network Coordinate Agent co-located with them (in the case of brokers and static clients) or from the serving Edge Gateway (in the case of mobile clients).
 
 \section{Evaluations}
+\label{sec:epulsar_evals}
 In this section, we present a set of evaluations to demonstrate the efficacy of the proposed mechanisms in enabling an edge-centric latency-aware control-plane for a geo-distributed publish-subscribe system \epulsar{}. Specifically, we aim to prove the following hypotheses through experimentation.
 \begin{enumerate}
 \item Incorporating network proximity information in the broker selection policy allows the satisfaction of per-topic latency constraints. Aggregation of client network coordinates does not impair the quality of the broker selection decision.
@@ -297,3 +301,4 @@ We consider the infrastructure topology described in \cref{sec:epulsar_eval_scen
 For each swarm. the E2E latency remains under the latency threshold  (40 ms) for most of the experiment duration. Transient violations of latency threshold occur when a swarm moves into a different MEC zone than the one currently hosting the swarm's topics. \epulsar{}'s monitoring module detects such violations and triggers migration of the swarm's topics to the broker at the new MEC zone, after which the E2E latency returns back under the latency threshold.
 
 \section{Conclusion}
+\label{sec:epulsar_conclusion}

@@ -1,10 +1,20 @@
 \chapter{\oneedge{}: Application orchestration over geo-distributed Edge infrastructure}
 \label{sec:oneedge}
 
-\section{Introduction}
+\par Situation-awareness applications consist of multiple components that need to be deployed on Edge sites to be able to serve clients. The Edge infrastructure is heterogeneous both in terms of network topology and site capacity. Thus having  developers be responsible for selecting the right Edge sites for hosting the different components of their applications is a non-trivial burden on the developers. The burden is exacerbated by the fact that application clients are mobile and the placement of applications might need to be changed repeatedly. Instead, developers expect an application orchestration service to manage applications, such as Kubernetes. 
+\par Situation-awareness applications require that clients are served by application components that are deployed in network proximity from them so that the SLO of the sense-process-actuate control-loops can be met. Secondly, applications that involve collaboration between multiple clients require that the clients close to each other are served by the same application instance. Finally, continuous client mobility necessitates this mapping from client to application instances to be dynamic, because mobility causes the location and network connectivity of clients to change. However, the control-plane policies in cloud-based orchestrators such as Kubernetes  are insufficient to cater to these requirements. For one, Kubernetes uses tag-matching based approach for selecting candidate nodes for hosting an application, which is insufficient for capturing the heteogeneity in network latency in Edge infrastructure or for location-aware placement. Secondly, Kubernetes does not monitor observed latencies in the application or the client location and therefore cannot detect the need to dynamically update client to application instance mapping.
+\par To overcome these limitations, we propose \oneedge{}, which is an application orchestrator designed for serving situation-awareness applications on Edge infrastructure. \oneedge{} performs latency-sensitive placement of application components so that the latency requirements of applications are met. It also performs mapping of clients to application instances in a way that satisfies both latency and spatial affinity. Furthermore, it continuously monitors observed latencies and client location to detect any latency or spatial affinity violations and triggers an update in the client to application instance mapping if necessary. More concretely, \oneedge{} makes the following contributions.
+\begin{itemize}
+\item \oneedge{} leverages the Network Proximity Estimation mechanism for performing latency-sensitive application placement over Edge infrastructure. 
+\item \oneedge{} leverages the Dynamic Spatial Context Management mechanism for performing location-aware mapping of clients to application instances. 
+\item It uses the End-to-End Monitoring mechanism to detect if the latency requirement of an application instance is violated and determines the root-cause of the violation. If the violation is caused by client mobility, it triggers the migration of that particular client to a better application instance. If the violation is caused due to compute overload at a particular application component instance, it triggers a partitioning of the clients served by that instance and moves a subset of clients to another instance. If the application component is one involving inter-client coordination, the client partitioning is done in a location-aware manner by using the dynamic Spatial Context Management mechanism.
+\end{itemize}
+ The roadmap of this chapter is as follows. \cref{sec:oneedge_background} provides a background of application orchestration on an Edge infrastructure and the application model. It also discusses in detail the requirements of situation-awareness applications and the challenges of meeting those requirements in an Edge setting. \cref{sec:oneedge_arch} presents the architecture of \oneedge{}. \cref{sec:oneedge_nw_prox} describes how \oneedge{} utilizes the network proximity estimation mechanism for performing latency-sensitive application placement. \cref{sec:oneedge_spatial_ctx} discusses how \oneedge{} uses  the Dynamic Spatial Context Management mechanism for location-aware application placement. \cref{sec:oneedge_dist_mon} describes how \oneedge{} uses the Distributed End-to-End Monitoring mechanism to implement its violation detection and root-cause analysis policies. \cref{sec:oneedge_impl} presents implementation details and \cref{sec:oneedge_evals} presents results of experimental evaluation of \oneedge{}. \cref{sec:oneedge_conclusion} concludes the chapter.
+
+
 
 \section{Basics of Application Orchestration in Edge Computing}
-
+\label{sec:oneedge_background}
 In this section, we will set the stage for the discussion of how \oneedge{} leverages the mechanisms proposed in this dissertation to implement control-plane policies for application orchestration. We first present the application model that \oneedge{} supports, the application requirements for which control-plane policies need to be designed, and the challenges faced by in an Edge setting due to the dynamism in workload.
 
 \subsection{Application Model}
@@ -160,6 +170,7 @@ Typical situation-awareness applications have clients that are inherently mobile
 The frequency of events generated by different application components in an application pipeline changes over time. This is either due to the mobility of clients which changes the properties of the environment sensed by the clients. For instance, in the Collaborative Driving Assistance application, the number of neighboring vehicles output by the Detection component (in the client) is a function of the density of neighboring traffic, which changes with time as the ego vehicle moves. The change in processing requirements of applications can also happen for static sensors, such as CCTV cameras, when the environment they are sensing undergoes changes. For instance, in the \todo{} application, the frequency of events generated by the \todo{} component depends on the number of cars in the field-of-view of a camera, which changes over time.
 
 \subsection{Edge-centric Policies for Application Orchestration}
+
 \begin{itemize}
 \item Application Placement that takes into account end-to-end latency threshold of application components as well as spatial affinity requirement.
 \item Continuous monitoring of application instances to detect violation of end-to-end processing latency or spatial affinity requirements.
@@ -168,6 +179,7 @@ The frequency of events generated by different application components in an appl
 \end{itemize}
 
 \section{Architectural Components of \oneedge{}}
+\label{sec:oneedge_arch}
 Now we present the system architecture of \oneedge{}, covering the design choices and deployment characteristics of each component of the system. We will first provide a high-level overview of the system, with an emphasis on describing how \oneedge{} operates and the typical operations of each component. Then we will discuss the functions of each component in more detail.
 
 \subsection{High-level System Architecture}
@@ -278,7 +290,7 @@ The Transactions generated by the Scheduler are buffered in the Pending Transact
 The Transaction Executor module is responsible for executing the decisions taken by the Scheduler on the Edge Sites. It sends commands for instantiating workers and allocating resources to them on the target Edge sites.
 
 \section{Latency-aware Application Scheduling using Network Proximity Estimation}
-
+\label{sec:oneedge_nw_prox}
 \subsection{Deployment of Network Coordinate Agents}
 Network Coordinate agents are deployed on all Edge Sites's Site Manager modules, Edge Gateways and Clients. The agents on the clients don't participate in the decentralized network coordinates protocol, but rather compute their own network coordinate by using the coordinate of their current edge gateway. All agents periodically send their current network coordinate to the controller, which maintains them in its aggregate state can be queried by the application scheduling policy.
 
@@ -414,6 +426,7 @@ The $find\_pipeline$ function is the central piece of the application scheduling
 \end{algorithm}
 
 \section{Spatial-Affinity-aware Application Scheduling using Dynamic Spatial Context Management}
+\label{sec:oneedge_spatial_ctx}
 An application can have multiple components that are tied to their specific spatial contexts. The constraint imposed by \oneedge{} is that the spatial context of an upstream component should be completely present inside the spatial context of the downstream component. This is done to ensure that the each instance of the downstream component has only one parent instance. 
 \subsection{Flexible Partitioning of Geographical Space}
 For each of the application components that are spatially constrained, the control-plane maintains a KD-Tree based spatial partitioning, as discussed in \cref{sec:spatial_ctx_mgmt}. The definition of the application abstract is updated so as to include information about which levels of an application are spatially constrained. The specification of an application level has a boolean attribute $isSpatiallyConstrained$, which is set to True for levels that have a spatial context. \oneedge{} uses the Aggregate State to store the spatial partitioning for components belonging to different applications. It does so by maintaining a dictionary $spatial\_partitionings$, for which the key is a pair of application ID and application component level, and the value is the spatial partitioning for that level of the application pipeline.
@@ -495,6 +508,7 @@ Third, when the application placement policy makes a deployment decision, it che
 
 
 \section{Distributed Monitoring in \oneedge{}}
+\label{sec:oneedge_dist_mon}
 The goal of monitoring in \oneedge{} is to detect violations of performance SLO, which in this case is end-to-end processing latency. The end-to-end processing latency constraint is specified for one or more components of the application pipeline. The end-processing-latency at a certain component is the sum of the processing and communication latencies of the application pipeline instance right from the client up to (and including) the given component. The objective of \oneedge{} is to detect when any constraint on end-to-end processing latency in an application instance is violated, identify the root-cause of the violation and trigger an appropriate reconfiguration action to alleviate the violation. In this section, we will discuss how \oneedge{} uses the distributed monitoring mechanism proposed in \cref{sec:monitoring_mechanism} to achieve the aforementioned objectives.
 
 \subsection{Definition of Metrics used by \oneedge{}}
@@ -627,9 +641,11 @@ For each client undergoing latency SLO violation, as detected by the violation d
 \end{itemize}
 
 \section{Implementation}
+\label{sec:oneedge_impl}
 All the system components of \oneedge{} have been implemented using C++ and tested on Ubuntu 18.04. The communication between the system components has been implemented using ZMQ, while the serialization and deserialization of messages has been done using Google Protobuf library. The Container Runtime used on the Edge sites is Docker. All application workers are instantiated on Edge sites as a Docker container running with an application-specific image. The application-specific image is built on top of a base worker image which packages the Container Agent and its dependencies, such as ZMQ and Protobuf. The application-specific image contains the specific binary of the application logic, which is dynamically linked into the Container Agent. The Controller is implemented as a centralized entity, which maintains aggregate state in a Mongo DB database. 
 
 \section{Evaluations}
+\label{sec:oneedge_evals}
 We evaluate \oneedge{} to test the following hypotheses.
 \begin{itemize}
 \item \oneedge{} is able to use the network proximity estimation mechanism to perform latency-sensitive application placement. The placement done by \oneedge{} is cognizant of scarce Edge resources as well and only places the latency-sensitive components on the Edge.
@@ -735,4 +751,6 @@ Due to the natural mobility of vehicles, there are times when a large number of 
     \caption{End-to-end latency at the Fusion component over time.}
     \label{fig:mapfusion_latency}
 \end{figure}
+
 \section{Conclusion}
+\label{sec:oneedge_conclusion}
