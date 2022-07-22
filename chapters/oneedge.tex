@@ -39,7 +39,7 @@ Situation-awareness applications process data incoming from sensors through a se
 \label{fig:app_model}
 \end{figure}
 
-Although applications are modeled and specified as a linear pipeline, upon deployment for multiple clients, world, the set of application components and the data dependencies among them resemble a forest, as shown in \cref{fig:pipeline_tree}. This is because in order to serve many geo-distributed clients, the same application component needs to have several instances deployed in network proximity of clients so that communication latency to the application instance can be minimized and real-time response made possible. However, not all pipeline components have stringent latency requirements, and thus can serve multiple clients. Each tree in the forest has the most downstream application component (with level 0) as the root node and clients as leaf nodes. Each root-to-leaf path in a tree is a complete application pipeline, and we call each such path except the leaf node an \textit{application instance}. An application component that serves more than one upstream components is essentially processing information gathered from multiple clients, and therefore is able to enable state sharing among clients. However, even for applications that don't share state among clients in their logic, sharing one or more components in the application pipeline among multiple clients can be beneficial. This is because the memory footprint of running multiple independent application components is higher than sharing an application component to serve the same number of clients.
+Although applications are modeled and specified as a linear pipeline, upon deployment for multiple clients, world, the set of application components and the data dependencies among them resemble a forest, as shown in \cref{fig:pipeline_tree}. This is because in order to serve many geo-distributed clients, the same application component needs to have several instances, which we call \textit{workers}, deployed in network proximity of clients so that communication latency to the application instance can be minimized and real-time response made possible. However, not all pipeline components have stringent latency requirements, and thus can serve multiple clients. Each tree in the forest has the most downstream application component (with level 0) as the root node and clients as leaf nodes. Each root-to-leaf path in a tree is a complete application pipeline, and we call each such path except the leaf node an \textit{application instance}. An application component that serves more than one upstream components is essentially processing information gathered from multiple clients, and therefore is able to enable state sharing among clients. However, even for applications that don't share state among clients in their logic, sharing one or more components in the application pipeline among multiple clients can be beneficial. This is because the memory footprint of running multiple independent application components is higher than sharing an application component to serve the same number of clients.
 
 \begin{figure}[ht]
 \centering
@@ -104,24 +104,29 @@ Each application instance, comprising of all the components in the application's
 \label{eq:placement_eqn}
 \mathcal{P} \left( a \right) = \text{Compute resource hosting }a
 \end{equation}
-The placement of application components is computed in a manner that meets the end-to-end latency requirements of the application, as described in \label{sec:oneedge_app_reqs}.
+The placement of application components is computed in a manner that meets the response time requirements of the application, as described in \label{sec:oneedge_app_reqs}.
 
 \subsection{Application Requirements}
 \label{sec:oneedge_app_reqs}
 We now discuss the requirements that \oneedge{} allows application developers to specify which allow the application
 \begin{figure}
 	\centering
-	\includegraphics[width=0.95\textwidth]{figures/oneedge/pipeline_latency.pdf}
+	\includegraphics[width=0.95\textwidth]{figures/oneedge/app_pipeline_slo.pdf}
     \caption{
-    A generic pipeline that explains the different components of the tolerable latency staleness. $S_{(i-1,i)}$ is the acceptable latency starting at the output of the client to the input of the node $i$. It is composed of both computational latency $C_j$ and transmission latency $T_{j-1,j}$. \todo{Update this figure with the right definition of E2E latency.}}
+    A generic pipeline that shows the response time constraints that applications are allowed to specify. The response time of a given application component is the time duration between the client generating a message to the given component processing the message and the result arriving at the client.}
 	\label{fig:pipeline_lat}
 \end{figure}
 
-\subsubsection{End-to-End Processing Latency}
-Application developers are able to specify the end-to-end processing latency for each component in the application pipeline model. End-to-End processing latency for an application component is the time elapsed between when a specific data-item/event is generated by the client to when it is processed by the application component. This includes the network transmission latency and processing time of all the upstream components. The end-to-end latency constraint for each application component should be satisfied for each client of the given application. The end-to-end latency for client $c$ at application component with level $l$ is defined in \cref{eq:e2e_proc_latency}, which is calculated recursively using the value for the upstream component with level $l+1$. The base case is when the level $l$ equals the level corresponding to the client itself, in which case, the end-to-end latency is equal to the processing latency on the client.
+\subsubsection{Response Time of Application Component}
+Application developers are able to specify the response time requirement for each component in the application pipeline model. Response time for an application component is the time elapsed between when a specific data-item/event is generated by the client to when it is processed by the application component and the result is received by the client. This includes the network transmission latency and processing time of all the upstream components and the final network latency between the given component and the client. Let us assume an application with the application model being a pipeline $L$ stages. The response time constraint for each application component should be satisfied for each client of the given application. The response time for client $c$ from a worker with level $l$ is calculated using total processing latency (defined in \cref{eq:e2e_proc_latency}), which is calculated recursively using the value for the upstream component. The base case is when the component $c$ is the client itself, in which case, the total processing latency is equal to the processing latency on the client.
 \begin{equation}
 \label{eq:e2e_proc_latency}
-E2E \left( c, l \right) = E2E \left(c , l+1 \right) + proc \left( \mathcal{M} \left( c, l \right) \right) + net \left(  \mathcal{M} \left( c, l+1 \right) , \mathcal{M} \left( c, l \right) \right)
+total\_proc \left( l \right) = total\_proc \left(l+1 \right) + N_{\left( l+1, l\right)} + C_{l}
+\end{equation}
+
+\begin{equation}
+\label{eq:response_time}
+response\_time \left( l \right) = total\_proc \left(l \right) + N_{\left( L-1, l\right)} 
 \end{equation}
 
 \subsubsection{Spatial Affinity}
@@ -138,17 +143,16 @@ Several situation-awareness applications such as the collaborative driving assis
    Y = \{y \in \mathbb{R}~|~\dfrac{-\pi}{2} < y < \dfrac{\pi}{2}\}
 \end{equation}
 
-For an application component of level $l$ that needs to facilitate inter-client information sharing, the control-plane assigns each spatial context $s_z$ with an application component and map all clients located within that spatial context to that instance. Multiple spatial contexts can also be mapped to the same application instance. However, the main requirement is that all clients within given spatial context should be served by the same application instance so that they can effectively share state with other clients in the same spatial context. The quality of this client-application-instance mapping is quantified using the Spatial Alignment metric, as shown in \cref{eq:spatial_alignment}. The Spatial Alignment metric is defined for each spatial context $s_z$ that is served by the application component instance $a$ at level $l$.  Ideally, the spatial alignment metric should be equal to 1 for all spatial contexts.
+For an application component of level $l$ that needs to facilitate inter-client information sharing, the control-plane assigns each spatial context $s_z$ with an application component and map all clients located within that spatial context to that instance. Multiple spatial contexts can also be mapped to the same application instance. However, the main requirement is that all clients within given spatial context should be served by the same application instance so that they can effectively share state with other clients in the same spatial context. The quality of this client-application-instance mapping is quantified using the Spatial Alignment metric, as shown in \cref{eq:spatial_alignment}. The Spatial Alignment metric is defined for each spatial context $s_z$ that is served by the application component instance $a_z$ at level $l$.  Ideally, the spatial alignment metric should be equal to 1 for all spatial contexts.
 \begin{equation}
 \label{eq:spatial_alignment}
-SA \left( a \right) = \dfrac{|\{ c \in \clientset : c.loc \in s_z   \mathcal{M} \left( c, l\right) = a \}|}{|\{ c \in \clientset : c.loc \in s_z \}|}
+SA \left( a_z \right) = \dfrac{|\{ c \in \clientset : c.loc \in s_z  : \mathcal{M} \left( c, l\right) = a_z \}|}{|\{ c \in \clientset : c.loc \in s_z \}|}
 \end{equation}
-\todo{Can we connect application instance $a$ with $s_z$?}
 
 \subsection{Application Abstract: Specifications provided by the Developer}
 \oneedge{} expects the developer to provide specifications for each application, which should contain information that will be used by the control-plane for making policy decisions. The application abstract should contain the number of levels in the application pipeline, the expected inter-arrival time of sensor data at each client and the following fields for each level of the pipeline.
 \begin{itemize}
-\item The end-to-end latency constraint for that level. This information is used by the application scheduling policy in the control-plane to ensure that the end-to-end latency observed by all workers that belong to this particular application and level satisfied this constraint. This information is also used by the violation detection policy to detect a violation in end-to-end latency and trigger a reconfiguration.
+\item The response time constraint for that level. This information is used by the application scheduling policy in the control-plane to ensure that the response time observed by all workers that belong to this particular application and level satisfied this constraint. This information is also used by the violation detection policy to detect a violation in response time and trigger a reconfiguration.
 \item The number of CPU cores and memory (in KB) required by a worker of that level. These are denoted by $CPU_{req}$ and $MEM_{req}$ respectively.
 \item The expected processing latency of the worker for different number of clients connected to it. This information is obtained by offline-profiling of the application component by the developer. This information is used by the application scheduling policy to estimate the processing latency of a worker.
 \item Maximum number of clients that can be connected to a worker of that level. This information is obtained by offline profiling of the application component and determining when the worker cannot handle any more clients without a significant increase in processing latency. This information is used by the application scheduling policy to select candidate workers for reuse.
@@ -164,7 +168,7 @@ SA \left( a \right) = \dfrac{|\{ c \in \clientset : c.loc \in s_z   \mathcal{M} 
 \end{itemize}
 
 \subsubsection{Client Mobility}
-Typical situation-awareness applications have clients that are inherently mobile, for example, vehicles, pedestrians, UAVs, etc. The mobility of clients creates two main challenges. For applications involving inter-client information sharing, the mapping of a client to an instance of a given component is based on the spatial context of that component's instance and the location of the client. Due to client mobility, the client's location might change so much that it exits the spatial context of the current application component instance, and thus is not able to coordinate with the correct subset of other clients that are in its physical proximity. This requires that the client be migrated to the application component instance that has the correct spatial context which corresponds to the current location of the client. Secondly, client mobility can result in a change in the network routing and hence communication latency to and from the application instance. This change in communication latency affects the end-to-end processing latency for that client's data by the current application instance. This necessitates that the client be migrated to an application instance that can satisfy the end-to-end latency requirements.
+Typical situation-awareness applications have clients that are inherently mobile, for example, vehicles, pedestrians, UAVs, etc. The mobility of clients creates two main challenges. For applications involving inter-client information sharing, the mapping of a client to an instance of a given component is based on the spatial context of that component's instance and the location of the client. Due to client mobility, the client's location might change so much that it exits the spatial context of the current application component instance, and thus is not able to coordinate with the correct subset of other clients that are in its physical proximity. This requires that the client be migrated to the application component instance that has the correct spatial context which corresponds to the current location of the client. Secondly, client mobility can result in a change in the network routing and hence communication latency to and from the application instance. This change in communication latency affects the response time for that client by the current application instance. This necessitates that the client be migrated to an application instance that can satisfy the response time requirements.
 
 \subsubsection{Changes in Processing Requirements of Applications}
 The frequency of events generated by different application components in an application pipeline changes over time. This is either due to the mobility of clients which changes the properties of the environment sensed by the clients. For instance, in the Collaborative Driving Assistance application, the number of neighboring vehicles output by the Detection component (in the client) is a function of the density of neighboring traffic, which changes with time as the ego vehicle moves. The change in processing requirements of applications can also happen for static sensors, such as CCTV cameras, when the environment they are sensing undergoes changes. For instance, in the View-Fuse application, the frequency of events generated by the Detection component depends on the number of cars in the field-of-view of a camera, which changes over time.
@@ -172,7 +176,7 @@ The frequency of events generated by different application components in an appl
 \subsection{Edge-centric Policies for Application Orchestration}
 
 \begin{itemize}
-\item Application Placement that takes into account end-to-end latency threshold of application components as well as spatial affinity requirement.
+\item Application Placement that takes into account response time threshold of application components as well as spatial affinity requirement.
 \item Continuous monitoring of application instances to detect violation of end-to-end processing latency or spatial affinity requirements.
 \item In the case of a violation, a root-cause analysis needs to be done to detect the root-cause of the violation and trigger an appropriate reconfiguration action.
 \item The reconfiguration action depends on the nature of the violation. If the violation is due to communication latency increase between an upstream and downstream component, the downstream component instance needs to be mapped to a different instance of the upstream instance so that the latency requirements can be satisfied. If the violation is due to compute overload, a portion of the clients served by the overloaded instance need to be migration to a different application instance. If the overloaded instance is spatially constrained, then the partitioning of clients has to be done so as to ensure that the resulting mapping of clients satisfies spatial affinity requirements.
@@ -192,7 +196,7 @@ Now we present the system architecture of \oneedge{}, covering the design choice
 \end{figure*}
 \cref{fig:system_arch} shows the high-level system architecture of \oneedge{}. There are three top-level entities \textit{Clients}, \textit{Edge Sites} and the \textit{Controller}. 
 Client entities represent all client devices, such as autonomous vehicles, drones, etc. that run the client component of situation-awareness applications. Clients entities are inherently mobile and geo-distributed. The client module of situation-awareness applications hosted by them require connection to an application pipeline that can carry out the rest of the functionality of the application. Each client is also equipped with sensor and actuator devices. Sensors on the client act as the source of data for the application pipeline. 
-\par Edge Sites geo-distributed entities with compute and storage resources that is able to run instances of application components and serve clients. The Controller is a logically-centralized entity which is responsible for performing the main decisions of an application orchestrator, i.e., mapping upstream application workers to downstream workers, and deploying and managing workers (\cref{sec:app_orch_decisions})\todo{Define workers before}. It does so by maintaining the state of the entire infrastructure, including clients, edge sites and the workers running on edge sites. The controller receives requests from clients for connection to an application pipeline and it uses the application scheduling policies against the aggregate state to make this decision. In addition, the controller also hosts the policies for detecting violation of application requirements and triggering reconfiguration actions by invoking the aforementioned application scheduling policies.
+\par Edge Sites geo-distributed entities with compute and storage resources that is able to run instances of application components and serve clients. The Controller is a logically-centralized entity which is responsible for performing the main decisions of an application orchestrator, i.e., mapping upstream application workers to downstream workers, and deploying and managing workers (\cref{sec:app_orch_decisions}). It does so by maintaining the state of the entire infrastructure, including clients, edge sites and the workers running on edge sites. The controller receives requests from clients for connection to an application pipeline and it uses the application scheduling policies against the aggregate state to make this decision. In addition, the controller also hosts the policies for detecting violation of application requirements and triggering reconfiguration actions by invoking the aforementioned application scheduling policies.
 
 \subsection{Client}
 In the \oneeedge{} application orchestration system, a Client consists of three key components - the Client Worker that hosts the client application module, Worker Agent which acts as the interface between the application module and the rest of the system and the Sensor and Actuator devices, which are the source and sink of data.
@@ -221,7 +225,7 @@ Each Edge site hosts a Metrics Server, which performs multi-metric alignment. Ea
 The Controller is responsible for application scheduling and management at a global-scale across Edge sites. It receives requests for application deployment and reconfiguration from clients and the monitoring subsystem respectively. These requests are processed by the Scheduler, which turns these requests into a transaction (set of actions) to be executed on one or more Edge sites. The transactions are executed on the Edge sites by the Transaction Executor component. We will discuss each of the components in greater detail next.
 \subsubsection{Scheduler}
 \label{sec:scheduler}
-The Scheduler picks up one request at a time from the Controller's request queue and computes a scheduling decision for the request. The scheduling decision is computed by executing the placement algorithm (\cref{todo}) for mapping the requesting client to a suitable application instance that can satisfy the end-to-end latency and spatial affinity requirements. If no such application instance exists, a new instance is instantiated and suitable Edge sites for hosting the application components are selected. In the case of a reconfiguration request for updating allocation of an application instance, the scheduler computes the final resource allocation for the components of that application instance.
+The Scheduler picks up one request at a time from the Controller's request queue and computes a scheduling decision for the request. The scheduling decision is computed by executing the placement algorithm (\cref{todo}) for mapping the requesting client to a suitable application instance that can satisfy the response time and spatial affinity requirements. If no such application instance exists, a new instance is instantiated and suitable Edge sites for hosting the application components are selected. In the case of a reconfiguration request for updating allocation of an application instance, the scheduler computes the final resource allocation for the components of that application instance.
 \par The Scheduler reads the Aggregate Resource State to check the current available resource capacity on each Edge site, and updates the state with changes to the resource allocation. Hence, the Aggregate State is \textit{optimistically} updated even before the scheduling decision has actually been applied on the specific Edge sites. By doing so, the process of compute application scheduling decisions is decoupled from the actual enforcement of those decisions on the Edge sites. The scheduling decision is in the form of a Transaction, which is a collection of the actions that need to be taken to execute the scheduling decision. The constituent actions of a transaction need to executed on one or more Edge sites. 
 
 \begin{comment}
@@ -295,16 +299,16 @@ The Transaction Executor module is responsible for executing the decisions taken
 \subsection{Deployment of Network Coordinate Agents}
 Network Coordinate agents are deployed on all Edge Sites's Site Manager modules, Edge Gateways and Clients. The agents on the clients don't participate in the decentralized network coordinates protocol, but rather compute their own network coordinate by using the coordinate of their current edge gateway. All agents periodically send their current network coordinate to the controller, which maintains them in its aggregate state can be queried by the application scheduling policy.
 
-\subsection{Estimating End-to-End Processing Latency}
-\par Estimating the end-to-end latency observed at a worker (instance of an application pipeline stage) is equal to the sum of the processing and communication latencies of all the upstream workers including itself. 
+\subsection{Estimating Response Time from an Application Worker}
+\par Estimating the response time observed from a worker (instance of an application pipeline stage) is equal to the sum of the processing and communication latencies of all the upstream workers including itself and the communication latency from the given worker back to the client. 
 \par Estimating the communication latency is done by using the Network Proximity Estimation mechanism. The network latency between the client and its \textit{parent} worker is computed by using the network coordinate of the client and the network coordinate of the Edge Site hosting the worker. Similarly the network latency between a \textit{parent} and a \textit{child} worker is computed using the network coordinates of the two Edge Sites hosting those workers.
 \par The processing latency of a worker is derived from the developer's specification, provided as part of the application abstract. In the context of \oneedge{}, queuing latency at a worker is also included in processing latency. The processing latency of a worker depends on the number of clients it is serving. The developer is expected to perform offline profiling of each application component to generate the distribution of expected processing latencies for a given number of clients served by a worker.
 
 \subsection{Control-Plane Policy for Latency-aware Application Scheduling}
 \label{sec:oneedge_latency_aware_placement}
-The Latency-aware Application Scheduling policy aims to place applications components on the geo-distributed Edge infrastructure such that end-to-end processing latency requirements of each application component is met as well as scarce Edge resources are used only for latency-sensitive application components. A greedy placement policy would place all components of the application on the Edge, which would result in scarcity of resources to support new clients.
-\par \oneedge{}'s latency-sensitive application scheduling policy is illustrated in \cref{algo:oneedge_scheduling_policy}. The algorithm jointly performs the mapping of upstream application workers to downstream ones along with the creating of new workers if they don't exist. The algorithm starts with the client worker, and tries to map it to an existing downstream worker or create a new downstream worker, and so on. This process is executed in the $find\_pipeline$ function, which performs a backtracking search to find the right downstream worker to map the current worker to, assuming that rest of the downstream workers will also find a suitable mapping. In every step of this iterative process, the algorithm maintains the end-to-end processing latency that has been consumed
-up to and including the current worker. Line 3 shows that when mapping the client worker to a downstream component, the current cumulative end-to-end latency is assigned a value equal to the processing latency of the client worker. The function $find\_pipeline$ recursively computes the optimal workers for each component of the application pipeline. The result of the $find\_pipeline$ function contains a list of workers for each downstream application component along with information about whether that worker already existed in the system or if it needs to be created (line 7). The metadata of those workers that need to be created is passed to the Transaction Executor module (line 13).
+The Latency-aware Application Scheduling policy aims to place applications components on the geo-distributed Edge infrastructure such that response time requirements of each application component is met as well as scarce Edge resources are used only for latency-sensitive application components. A greedy placement policy would place all components of the application on the Edge, which would result in scarcity of resources to support new clients.
+\par \oneedge{}'s latency-sensitive application scheduling policy is illustrated in \cref{algo:oneedge_scheduling_policy}. The algorithm jointly performs the mapping of upstream application workers to downstream ones along with the creating of new workers if they don't exist. The algorithm starts with the client worker, and tries to map it to an existing downstream worker or create a new downstream worker, and so on. This process is executed in the $find\_pipeline$ function, which performs a backtracking search to find the right downstream worker to map the current worker to, assuming that rest of the downstream workers will also find a suitable mapping. In every step of this iterative process, the algorithm maintains the total processing latency that has been consumed
+up to and including the current worker. Line 3 shows that when mapping the client worker to a downstream component, the current cumulative total processing latency is assigned a value equal to the processing latency of the client worker. The function $find\_pipeline$ recursively computes the optimal workers for each component of the application pipeline. The result of the $find\_pipeline$ function contains a list of workers for each downstream application component along with information about whether that worker already existed in the system or if it needs to be created (line 7). The metadata of those workers that need to be created is passed to the Transaction Executor module (line 13).
 
 \begin{algorithm}
 \caption{Latency-aware Application Scheduling Policy}
@@ -312,12 +316,12 @@ up to and including the current worker. Line 3 shows that when mapping the clien
 \begin{algorithmic}[1]
 \Require Client c
 \Require Aggregate State $\mathcal{A}$
-\Require Application Abstract $app\_abstract$
+\Require Application Abstract $A$
 
-\State $appid \gets app\_abstract.app\_id$
-\State $client\_level \gets app\_abstract.num\_levels-1$
-\State $cum\_e2e\_latency \gets c.proc\_latency()$ \Comment{End-to-end latency consumed so far}
-\State $P \gets find\_pipeline \left( c, client\_level - 1, appid, cum\_e2e\_latency, app\_abstract, null \right)$
+\State $appid \gets A.app\_id$
+\State $L_{client} \gets A.num\_levels-1$ \Comment{Pipeline level of the client}
+\State $lat_{proc}^{total} \gets c.proc\_latency()$ \Comment{Total processing latency consumed so far}
+\State $P \gets find\_pipeline \left( c, c, L_{client} - 1, lat_{proc}^{total}, A, null \right)$
 \State $W \gets []$ \Comment{Worker launch actions}
 \State $child \gets c.id$
 \For{$\left( w, create \right) \in P$} \Comment{Establishing parent-child relationship in aggregate state}
@@ -333,29 +337,32 @@ up to and including the current worker. Line 3 shows that when mapping the clien
 \end{algorithmic}
 \end{algorithm}
 
-The $find\_pipeline$ function is the central piece of the application scheduling policy. It takes a particular worker as input and the cumulative end-to-end latency up to that worker and tries to find a mapping for the rest of the downstream application components. It does so recursively by trying to map the input worker to an immediately downstream worker, and then calls the function for this downstream worker. If it cannot find a mapping, it backtracks and tries another downstream worker.
-\par First, the function tries to reuse existing application workers, since each application component can serve more than one client. It gathers the candidates for worker reuse in line 5 (pseudocode for this function is shown in \cref{algo:get_reuse_candidates}). For each such reuse candidate, if it can serve an additional client (line 7) and if the end-to-end processing latency will be less than the threshold (line 8-9), this candidate is considered, and a recursive call is made to find a mapping for the remaining components. If the recursive call returns a successful result, then the search is complete and the result is returned, along with the chosen worker (lines 11-12).
-\par If no reuse candidates work, the policy will need to create a new worker. To do so, it selects the site which should hold this worker such that the latency constraint is satisfied. It computes the maximum network latency that can exist between the current worker and the candidate site in line 15, which is the difference between the latency threshold of the application component to be created and the sum of the total latency spent so far along with the expected processing latency of the application worker to be created. Any edge site within this latency from the current worker can host the downstream worker. The pseudocode of finding candidate sites is presented in \cref{algo:get_candidate_sites}. If the candidate site has enough free resources (line 18) and it can satisfy latency requirements (line 19-20), then a new worker is added on the site in  the aggregate state and a recursive call to the algorithm is made. If the recursive call fails to find a solution, the newly created worker is deleted and the next candidate site is tried.
+The $find\_pipeline$ function is the central piece of the application scheduling policy. It takes a particular worker as input and the cumulative total processing latency up to that worker and tries to find a mapping for the rest of the downstream application components. It does so recursively by trying to map the input worker to an immediately downstream worker, and then calls the function for this downstream worker. If it cannot find a mapping, it backtracks and tries another downstream worker.
+\par First, the function tries to reuse existing application workers, since each application component can serve more than one client. It gathers the candidates for worker reuse in line 5 (pseudocode for this function is shown in \cref{algo:get_reuse_candidates}). For each such reuse candidate, if it can serve an additional client (lines 8-9) and if the response time will be less than the threshold (line 10), this candidate is considered, and a recursive call is made to find a mapping for the remaining components. If the recursive call returns a successful result, then the search is complete and the result is returned, along with the chosen worker (lines 11-13).
+\par If no reuse candidates work, the policy will need to create a new worker. To do so, it selects the site which should hold this worker such that the response time constraint is satisfied. It computes the maximum network latency that can exist between the current worker and the candidate site and from the candidate site back to the client (line 16), which is the difference between the latency threshold of the application component to be created and the sum of the total latency spent so far along with the expected processing latency of the application worker to be created. Any edge site within this latency from the current worker and client can host the downstream worker. The pseudocode of finding candidate sites is presented in \cref{algo:get_candidate_sites}. If the candidate site has enough free resources and it can satisfy latency requirements, then a new worker is added on the site (line 19) in the aggregate state and a recursive call to the algorithm is made (line 21). If the recursive call fails to find a solution, the newly created worker is deleted and the next candidate site is tried (line 23).
 
 \begin{algorithm}
 \caption{$find\_pipeline$}
 \begin{algorithmic}[1]
 \Require Child worker/client $child$
-\Require Worker level to start search $worker\_level$
-\Require Application abstract $app\_abstract$
-\Require Cumulative end-to-end latency spent so far $cum\_e2e\_latency$
+\Require Client $client$
+\Require Worker level to start search $L_w$
+\Require Application abstract $A$
+\Require Cumulative processing latency spent so far $lat_{proc}^{total}$
 \Require Worker to select forcefully $force\_worker$
-\If{$worker\_level < 0$} \Comment{Search is complete}
+\If{$L_w < 0$} \Comment{Search is complete}
     \State \Return []
 \EndIf
-\State $L \gets app\_abstract.level\_cfgs [worker\_level]$
-\State $appid \gets app\_abstract.app\_id$
-\State $reuse\_candidates \gets get\_reuse\_candidates \left( appid, worker\_level,  force\_worker \right)$
+\State $L \gets A.level\_cfgs [L_w]$
+\State $appid \gets A.app\_id$
+\State $\mathcal{M} \gets \mathcal{A}.client\_mapping$ \Comment{Mapping of clients to workers}
+\State $reuse\_candidates \gets get\_reuse\_candidates \left( appid, L_w,  force\_worker \right)$
 \For{$c \in reuse\_candidates$}
     \If{$c.curr\_clients < L.max\_clients$}
-        \State{$e2e \gets cum\_e2e\_latency + NetworkRTT \left( c, child \right)/2 + proc\_latency \left( L, c.curr\_clients+1\right)$}
-        \If{$e2e < L.e2e\_threshold$}
-            \State $P \gets find\_pipeline \left( c, worker\_level - 1, e2e, app\_abstract, \mathcal{A}.parent\_map[c] \right)$
+        \State $lat_{proc} \gets lat_{proc}^{total} + NetworkRTT \left( c, child \right)/2 + proc\_latency \left( L, c.curr\_clients+1\right)$
+        \State $lat_{response} \gets lat_{proc} + NetworkRTT\left( c, client \right)/2 $
+        \If{$lat_{response} < L.response\_time\_threshold$}
+            \State $P \gets find\_pipeline \left( c, client, L_w - 1, lat_{proc}, A, \mathcal{M} \left( c, L_w -1 \right) \right)$
             \If{$P \neq null$}
                 \State \Return $[c.id, c.site\_id, False] + P$
             \EndIf
@@ -365,11 +372,12 @@ The $find\_pipeline$ function is the central piece of the application scheduling
 \If{$force\_worker \neq null$}
     \State \Return $null$
 \EndIf
-\State $e2e\_slack \gets L.e2e\_threshold - cum\_e2e\_latency - proc\_latency \left( L, c, 1 \right)$
-\State $C \gets get\_candidate\_sites \left( child, e2e\_slack, L.CPU_{req}, L.MEM_{req} \right)$
-\For $site \in C$
+\State $e2e\_slack \gets L.response\_time\_threshold - lat_{proc}^{total} - proc\_latency \left( L, 1 \right)$
+\State $C \gets get\_candidate\_sites \left( child, client, e2e\_slack, L.CPU_{req}, L.MEM_{req} \right)$
+\For{$site \in C$}
     \State $w \gets \mathcal{A}.create\_worker \left( site, L\right)$
-    \State $P \gets find\_pipeline \left( w, worker\_level - 1, e2e, app\_abstract, null\right)$
+    \State $lat_{proc} \gets lat_{proc}^{total} + NetworkRTT \left( site, child \right)/2 + proc\_latency \left( L, 1\right)$
+    \State $P \gets find\_pipeline \left( w, client, L_w - 1, lat_{proc}, A, null\right)$
     \If{$P == null$}
         \State $A.delete\_worker \left( w \right)$
     \Else
@@ -409,13 +417,14 @@ The $find\_pipeline$ function is the central piece of the application scheduling
 \label{algo:get_candidate_sites}
 \begin{algorithmic}[1]
 \Require Child worker/client $c$
-\Require Maximum network latency between $c$ and candidate site $nw\_lat_{max}$
+\Require Client $client$
+\Require Max network latency from $c$ to candidate site and back to $client$ $nw\_lat_{max}$
 \Require Free CPU and memory needed on the candidate site $CPU_{avail}$ and $MEM_{avail}$
 
 \State $C \gets []$
 \For{$site\_id \in \mathcal{A}.sites$}
     \State $\left( CPU_{avail}, MEM_{avail}\right) \gets \mathcal{A}.get\_free\_resources \left( site\_id \right)$
-    \State $nw\_lat \gets NetworkRTT \left( c, site\_id\right)/2$
+    \State $nw\_lat \gets NetworkRTT \left( c, site\_id\right)/2 + NetworkRTT \left( client, site\_id\right)/2$
     \If{$nw\_lat \leq nw\_lat_{max}$ and $CPU_{req} \leq CPU_{avail}$ and $MEM_{req} \leq MEM_{avail}$}
         \State $C \gets C \cup \{ \left( site\_id, nw\_lat \right) \}$
     \EndIf
@@ -431,7 +440,7 @@ The $find\_pipeline$ function is the central piece of the application scheduling
 An application can have multiple components that are tied to their specific spatial contexts. The constraint imposed by \oneedge{} is that the spatial context of an upstream component should be completely present inside the spatial context of the downstream component. This is done to ensure that the each instance of the downstream component has only one parent instance. 
 \subsection{Flexible Partitioning of Geographical Space}
 For each of the application components that are spatially constrained, the control-plane maintains a KD-Tree based spatial partitioning, as discussed in \cref{sec:spatial_ctx_mgmt}. The definition of the application abstract is updated so as to include information about which levels of an application are spatially constrained. The specification of an application level has a boolean attribute $isSpatiallyConstrained$, which is set to True for levels that have a spatial context. \oneedge{} uses the Aggregate State to store the spatial partitioning for components belonging to different applications. It does so by maintaining a dictionary $spatial\_partitionings$, for which the key is a pair of application ID and application component level, and the value is the spatial partitioning for that level of the application pipeline.
-\par The KDTree leaf node associated with a given spatially constrained application component instance is split under two scenarios: (i) when the number of clients mapped to that instance exceeds the maximum number of clients specified by the application developer, and (ii) when \oneedge{}'s Monitoring Subsystem detects a violation of end-to-end latency for a client mapped to the given instance and the root-cause of the violation is the processing latency on the instance.
+\par The KDTree leaf node associated with a given spatially constrained application component instance is split under two scenarios: (i) when the number of clients mapped to that instance exceeds the maximum number of clients specified by the application developer, and (ii) when \oneedge{}'s Monitoring Subsystem detects a violation of response time for a client mapped to the given instance and the root-cause of the violation is the processing latency on the instance.
 
 \subsection{System Components for Monitoring Spatial Context}
 
@@ -513,8 +522,9 @@ Third, when the application placement policy makes a deployment decision, it che
 The goal of monitoring in \oneedge{} is to detect violations of performance SLO, which in this case is end-to-end processing latency. The end-to-end processing latency constraint is specified for one or more components of the application pipeline. The end-processing-latency at a certain component is the sum of the processing and communication latencies of the application pipeline instance right from the client up to (and including) the given component. The objective of \oneedge{} is to detect when any constraint on end-to-end processing latency in an application instance is violated, identify the root-cause of the violation and trigger an appropriate reconfiguration action to alleviate the violation. In this section, we will discuss how \oneedge{} uses the distributed monitoring mechanism proposed in \cref{sec:monitoring_mechanism} to achieve the aforementioned objectives.
 
 \subsection{Definition of Metrics used by \oneedge{}}
-Each application component instance registers two metrics with the monitoring subsystem. 
-\begin{enumerate}
+Each application component instance registers the processing latency metrics with the monitoring subsystem. 
+%\begin{enumerate}
+\begin{comment}
 \item The network latency between the given application component instance and its immediate downstream component (also known as \textit{parent}). Each worker agent periodically measures the network latency between itself and its parent worker.
 
 \begin{minted}{yaml}
@@ -524,22 +534,35 @@ Each application component instance registers two metrics with the monitoring su
     metric: "net_latency"
     parent: <ID of parent component instance>
 \end{minted}
-\item Processing latency at the given application component instance. Each worker agent monitors the amount of time taken to process each data-item at the corresponding worker.
+\end{comment}
+The processing latency at the given application component instance is measured by the worker agent monitoring the amount of time taken to process each data-item at the corresponding worker.
 \begin{minted}{yaml}
 -   entity_id : <ID of application component instance>
     level : <level in application pipeline of component>
-    app_unit: <ID of root component instance in application tree>
+    app_unit: <ID of root worker in the application tree>
     metric: "proc_latency"
-    parent: <ID of parent component instance>
 \end{minted}
-\end{enumerate}
-In order to meet the aforementioned objectives of detecting violations of latency requirements and identify root-cause of the violation, it is only necessary to process the metrics belonging to a specific application unit together. In \oneedge{} the application unit is identifier of the root worker, because it is common among the application instances of all the clients connected to it, as shown in \cref{fig:app_unit_oneedge}. \todo{Add figure}
+%\end{enumerate}
+\par \noindent Each client reports a metric that captures its current network coordinate.
+\begin{minted}{yaml}
+-   entity_id : <ID of Client>
+    level : <level of client in application pipeline>
+    app_unit: <ID of root worker in the application tree>
+    metric: "nw_coordinate"
+\end{minted}
+\par \noindent  Each Edge site also reports a metric to capture its network coordinate.
+\begin{minted}{yaml}
+-   entity_id : <ID of Edge Site>
+    app_unit: <ID of Edge Site>
+    metric: "nw_coordinate"
+\end{minted}
+In order to meet the aforementioned objectives of detecting violations of latency requirements and identify root-cause of the violation, it is only necessary to process the metrics belonging to a specific application unit together. In \oneedge{} the application unit is identifier of the root worker, because it is common among the application instances of all the clients connected to it, as shown in \cref{fig:pipeline_tree}.
 
 \subsection{Deployment of Distributed Monitoring Components}
-Each worker agent collects measurements of parent and processing latency and records them to a locally running Metrics Agent. For a given instance of an application pipeline, the Multi-Metric Aggregation component is hosted on the Site Manager that hosts the root application component.
+Each worker agent collects measurements of processing latency and network coordinate and records them to a locally running Metrics Agent. Each Site Agent also runs a Metric Agent to record measurements of its network coordinate. The Multi-Metric Aggregation is carried out in a centralized manner, and is co-located with the controller.
 
 \subsection{Violation Detection Policy}
-\cref{algo:oneedge_violation_detection} presents the violation detection policy used in \oneedge{} to detect the violation of latency SLO for an instance of an application component. The algorithm is invoked periodically at the end of every bucket for every application unit in the system. The ID of the application unit, the abstract of the application and the current bucket are provided as inputs to the algorithm. The algorithm first filters the metrics from the metrics repository which correspond to the given application unit (line 1) and then extract the set of clients among those metrics (line 2). In lines 3-7, the algorithm creates a dictionary called $entities$ which stores the processing and communication latency for each worker that belongs to the given application unit. The rest of the algorithm iterates over the set of clients connected to the given application unit, and checks if any client is facing SLO violation at any downstream worker. For each client, the algorithm iterates through all levels of the application pipeline, while maintaining the cumulative observed end-to-end latency (line 14). If the end-to-end latency at a given level exceeds the threshold, the client is marked as violated along with the level whose latency threshold was exceeded.
+\cref{algo:oneedge_violation_detection} presents the violation detection policy used in \oneedge{} to detect the violation of latency SLO for an instance of an application component. The algorithm is invoked periodically at the end of every bucket for every application unit in the system. The ID of the application unit, the abstract of the application and the current bucket are provided as inputs to the algorithm. The algorithm first filters the metrics from the metrics repository which correspond to the given application unit (line 1) and then extract the set of clients among those metrics (line 2). In lines 3-7, the algorithm creates a dictionary called $entities$ which stores the processing latency for each worker that belongs to the given application unit. The rest of the algorithm iterates over the set of clients connected to the given application unit, and checks if any client is facing SLO violation at any downstream worker. For each client, the algorithm iterates through all levels of the application pipeline, while maintaining the cumulative processing latency time (line 18). If the response time at a given level exceeds the threshold, the client is marked as violated along with the level whose latency threshold was exceeded.
 \par It is important to note that for a given client, there could be multiple workers downstream from that client which could be facing SLO violation, however, the given violation detection algorithm only reports the upstream-most worker as violated. This is because fixing the violation of the upstream-most worker will also result in reconfiguring the workers downstream from it.
 \begin{algorithm}
 \caption{End-to-End Processing Latency Violation Detection policy}
@@ -550,27 +573,31 @@ Each worker agent collects measurements of parent and processing latency and rec
 \Require Current bucket $b_{curr}$
 \State $MD \gets \text{Fetch metrics where AppUnit == }A_{00}$
 \State $C \gets \{ m.entity\_id \forall m \in MD : m.level == APP.num\_levels-1 \}$
-\State $entities \gets \{\}$ \Comment{Dictionary to hold proc and net latencies for each worker}
+\State $E \gets \{\}$ \Comment{Dictionary to hold processing latencies for each worker}
 \For{$m \in MD$}
-    \If{$m \notin entities$}
-        \State $entities[m.entity\_id] \gets \{\}$
+    \If{$m \notin E$}
+        \State $E[m.entity\_id] \gets \{\}$
     \EndIf
-    \State $entities[m.entity\_id][m.metric] \gets m$ 
+    \State $E[m.entity\_id][m.metric] \gets m$ 
 \EndFor
 
 \State $violators \gets \{\}$
 \For{$c \in clients$}
-    \State $e \gets c$  
-    \State $e2e \gets 0$
-    \State $level \gets APP.num\_levels-1$
-    \While{$level \geq 0$} \Comment{Iterating over all levels of app pipeline}
-        \State $e2e += entities[e][proc\_latency][b_{curr}] + entities[e][net\_latency][b_{curr}]$
-        \If{$e2e \geq APP.e2e\_threshold[level]$}
+    \State $child \gets c$  
+    \State $lat_{proc}^{total} \gets E[child][proc\_latency][b_{curr}]$
+    \State $level \gets APP.num\_levels-2$ \Comment{Starting from parent of client}
+    \While{$level \geq 0$} \Comment{Iterating over all downstream levels of app pipeline}
+        \State $w \gets \mathcal{M} \left( child \right)$
+        \State $L \gets A.level\_cfgs [L_w]$
+        \State $NC_{child} \gets $ Network coordinate of $child$ 
+        \State $NC_{w} \gets $ Network coordinate of $w$
+        \State $lat_{proc}^{total} \gets lat_{proc}^{total} + dist \left( NC_{child}[b_{curr}], NC_w[b_{curr}] \right)/2 + E[w][proc\_latency][b_{curr}]$
+        \State $lat_{response} \gets lat_{proc}^{total} + dist \left( NC_{c}[b_{curr}], NC_w[b_{curr}] \right)/2$
+        \If{$lat_{response} \geq L.response\_time\_threshold$}
             \State $violators \gets violators \cup \{ \left( c, level \right) \}$
             \State \textbf{break}
         \EndIf
-        \State $level -= 1$
-        \State $e \gets entities[e][net\_latency].parent$
+        \State $level \gets level - 1$
     \EndWhile
 \EndFor
 \Return $violators$
@@ -578,7 +605,7 @@ Each worker agent collects measurements of parent and processing latency and rec
 \end{algorithm}
 
 \subsection{Violation Root-Cause Analysis Policy}
-For each client undergoing latency SLO violation, as detected by the violation detection policy in \cref{algo:oneedge_violation_detection}, \oneedge{} used the violation root-cause analysis policy (\cref{algo:violation_root_cause}) to identify the source of performance violation. The algorithm first extracts the component latencies that resulted in the violation for the given client $c$ (lines 4-9). Using the component latencies, it computes the end-to-end latency observed in the current monitoring window (line 10) - which would be over the latency threshold for level $l_{viol}$. To determine the root cause of this violation, the rest of the algorithm determines which component latency deviated the most from pre-violation levels to the current window. To do so, it first finds the monitoring window (bucket) in which the client did not face SLO violation (line 11), and computes the end-to-end latency at that time (line 12). Then it computes the relative change in each component latency with respect to the change in observed end-to-end latency (lines 13-15). Finally, the component that underwent the most change is returned as the culprit behind the violation.
+For each client undergoing latency SLO violation, as detected by the violation detection policy in \cref{algo:oneedge_violation_detection}, \oneedge{} used the violation root-cause analysis policy (\cref{algo:violation_root_cause}) to identify the source of performance violation. The algorithm first extracts the component latencies that resulted in the violation for the given client $c$ (lines 4-9). Using the component latencies, it computes the response time observed in the current monitoring window (line 10) - which would be over the latency threshold for level $l_{viol}$. To determine the root cause of this violation, the rest of the algorithm determines which component latency deviated the most from pre-violation levels to the current window. To do so, it first finds the monitoring window (bucket) in which the client did not face SLO violation (line 12), and computes the response time at that time (line 13). Then it computes the relative change in each component latency with respect to the change in observed response time (lines 14-16). Finally, the component that underwent the most change is returned as the culprit behind the violation.
 
 \begin{algorithm}
 \caption{Violation Root-Cause Analysis}
@@ -586,7 +613,7 @@ For each client undergoing latency SLO violation, as detected by the violation d
 \begin{algorithmic}[1]
 \Require Client undergoing latency SLO violation $c$
 \Require Application level with latency SLO violated $l_{viol}$
-\Require End-to-end latency SLO for level $e2e\_threshold$
+\Require response time SLO for level $response\_time\_threshold$
 \Require Current bucket $b_{curr}$
 \Require Bucket size $B$
 \Require Entities in client $c$'s application unit $E$
@@ -597,17 +624,18 @@ For each client undergoing latency SLO violation, as detected by the violation d
 \While{$level \geq l_{viol}$} \Comment{Collect all component latencies through level $l_{viol}$}
     \State $E_c [\left( w, proc \right)] \gets E[w][proc]$
     \If{$level > 0$} 
-        \State $E_c [\left( w, parent \right)] \gets E[w][parent]$
-        \State $w \gets E_c [\left( w, parent \right)].parent$
+        \State $E_c [\left( w, parent \right)] \gets dist \left( NC_w, NC_{\mathcal{M} \left(w \right)}\right)/2$
+        \State $w \gets \mathcal{M} \left(w \right)$
     \EndIf
     \State $level \gets level - 1$
 \EndWhile
-\State $e2e_{curr} \gets \sum_{\left( w, l\right) \in E_c}{E_c[\left( w, l\right)][b_{curr}]}$   \Comment{Current end-to-end latency at $l_{viol}$}
-\State $b_{pre} \gets find\_pre\_violation\_bucket \left( E_c, l_{viol}, e2e\_threshold, b_{curr}, B \right)$
-\State $e2e_{pre} \gets \sum_{\left( w, l\right) \in E_c}{E_c[\left( w, l\right)][b_{pre}]}$    \Comment{End-to-end latency at $l_{viol}$ before violation}
-\State $change \gets \{\}$  \Comment{Dict to store relative change in component latency wrt change in end-to-end latency}
+\State $E_c [\left( c, feedback\right) ]\gets \dist \left( NC_w[b_{curr}], NC_{c}[b_{curr}]\right)/2$ \Comment{NW latency of feedback from violated level}
+\State $lat_{response}^{curr} \gets \sum_{\left( w, l\right) \in E_c}{E_c[\left( w, l\right)][b_{curr}]}$   \Comment{Current response time at $l_{viol}$}
+\State $b_{pre} \gets find\_pre\_violation\_bucket \left( E_c, l_{viol}, response\_time\_threshold, b_{curr}, B \right)$
+\State $lat_{response}^{pre} \gets \sum_{\left( w, l\right) \in E_c}{E_c[\left( w, l\right)][b_{pre}]}$    \Comment{response time at $l_{viol}$ before violation}
+\State $change \gets \{\}$  \Comment{Dict to store relative change in component latency wrt change in response time}
 \For{$\left( w, l\right) \in E_c$}
-    \State $change [\left(w, l\right)] \gets \dfrac{E_c[\left( w, l \right)][b_{curr}] - E_c[\left( w, l \right)][b_{pre}]}{e2e_{curr} - e2e_{pre}}$
+    \State $change [\left(w, l\right)] \gets \dfrac{E_c[\left( w, l \right)][b_{curr}] - E_c[\left( w, l \right)][b_{pre}]}{lat_{response}^{curr} - lat_{response}^{pre}}$
 \EndFor
 \State $culprit \gets \arg\max_{\left(w, l\right)} change[\left( w, l\right)]$
 \State \Return $culprit$
@@ -619,16 +647,16 @@ For each client undergoing latency SLO violation, as detected by the violation d
 \caption{Finding most recent bucket before violation of latency SLO}
 \begin{algorithmic}[1]
 \Require Entities in violated client $c$'s application unit $E$
-\Require Application level with latency SLO violated $l_{viol}$
-\Require End-to-end latency SLO for level $e2e\_threshold$
+\Require Application level with response time SLO violated $l_{viol}$
+\Require Response time SLO for level $response\_time\_threshold$
 \Require Current bucket $b_{curr}$
 \Require Bucket size $B$
 
 \State $b \gets b_{curr}$
-\State $e2e \gets \sum_{\left( w, l\right) \in E_c}{E_c[\left( w, l\right)][b]}$
-\While{$e2e > e2e\_threshold$}
+\State $lat_{response} \gets \sum_{\left( w, l\right) \in E_c}{E_c[\left( w, l\right)][b]}$
+\While{$lat_{response} > response\_time\_threshold$}
     \State $b \gets b - B$ \Comment{Go to previous bucket}
-    \State $e2e \gets \sum_{\left( w, l\right) \in E_c}{E_c[\left( w, l\right)][b]}$
+    \State $lat_{response} \gets \sum_{\left( w, l\right) \in E_c}{E_c[\left( w, l\right)][b]}$
 \EndWhile
 \State \Return $b$
 \end{algorithmic}
@@ -724,7 +752,7 @@ In this dissertation, we are concerned about the quality of control-plane decisi
 
 We evaluate the control-plane of \oneedge{} with a workload that contains a variable number of clients of the two applications. 
 
-\par \noindent \textbf{Application Placement Policy Evaluation. }We first compare the goodness of its latency-sensitive application placement approach against a greedy placement approach.  The greedy baseline places all the application components -- latency sensitive or not  -- on Edge resources, which would deplete them in the event of increasing client activity. We perform this experiment under stringent Edge capacity scenarios, with each Edge site having a capacity of 64, 128 and 256 cores respectively. For this evaluation, we restrict the client workload to include only clients of the Drone application, because it is the only application with a latency-tolerant component. The number of clients is varied from 16 to 512, and we monitor the observed end-to-end latency at the Pose Estimation component (see \cref{table:drone_profile}). 
+\par \noindent \textbf{Application Placement Policy Evaluation. }We first compare the goodness of its latency-sensitive application placement approach against a greedy placement approach.  The greedy baseline places all the application components -- latency sensitive or not  -- on Edge resources, which would deplete them in the event of increasing client activity. We perform this experiment under stringent Edge capacity scenarios, with each Edge site having a capacity of 64, 128 and 256 cores respectively. For this evaluation, we restrict the client workload to include only clients of the Drone application, because it is the only application with a latency-tolerant component. The number of clients is varied from 16 to 512, and we monitor the observed response time at the Pose Estimation component (see \cref{table:drone_profile}). 
 \begin{figure}[ht]
   \centering
     \includegraphics[width=0.8\columnwidth]{figures/oneedge/violations_wrt_greedy_vs_num_clients.png}
@@ -733,7 +761,7 @@ We evaluate the control-plane of \oneedge{} with a workload that contains a vari
 \end{figure}
 \cref{fig:oneedge_placement} shows the fraction of clients that face SLO violations due to the depletion of Edge resources for the two evaluated placement policies. For each Edge site CPU capacity, the Greedy placement policy results in client violation with fewer number of clients than the SLO-Aware placement policy. Scenarios with non-zero fraction of clients with SLO violations are those in which the capacity at the Edge sites has been depleted and subsequent application instances are deployed in the Cloud datacenter. Furthermore, intuitively, this depletion of Edge site capacity occurs with a higher number of clients as the Edge site capacity is increased. Therefore, we can prove evaluation hypothesis 1, which states that the placement policy of \oneedge{} is able to perform SLO-aware application placement, while also judiciously using scarce Edge resources only for latency-sensitive components.\\
 
-\par \noindent \textbf{Alleviating Client-mobility-driven Violations.} We now show the behavior of observed data-staleness (end-to-end latency) at the Pose Estimation application component of the drone application in \cref{fig:drone_latencies}. The initial placement of the application components by \oneedge{}'s placement algorithm is such that the latency constraint of the Pose Estimation component is satisfied. However, over time as the drones move in the city, they enter the coverage area of a different Edge site than the one currently serving it. This results in an increase in the communication latency to the running application component instances, resulting in a violation of the latency constraint. 
+\par \noindent \textbf{Alleviating Client-mobility-driven Violations.} We now show the behavior of observed data-staleness (response time) at the Pose Estimation application component of the drone application in \cref{fig:drone_latencies}. The initial placement of the application components by \oneedge{}'s placement algorithm is such that the latency constraint of the Pose Estimation component is satisfied. However, over time as the drones move in the city, they enter the coverage area of a different Edge site than the one currently serving it. This results in an increase in the communication latency to the running application component instances, resulting in a violation of the latency constraint. 
 \begin{figure}[ht]
   \centering
     \includegraphics[width=0.8\columnwidth]{figures/oneedge/drone_latencies.png}
@@ -753,7 +781,7 @@ Due to the natural mobility of vehicles, there are times when a large number of 
 \begin{figure}[ht]
   \centering
     \includegraphics[width=0.8\columnwidth]{figures/oneedge/mapfusion_latencies.png}
-    \caption{End-to-end latency at the Fusion component over time.}
+    \caption{response time at the Fusion component over time.}
     \label{fig:mapfusion_latency}
 \end{figure}
 

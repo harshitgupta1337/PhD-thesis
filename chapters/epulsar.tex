@@ -95,30 +95,31 @@ To be able to estimate the network latency between every client and broker pair 
 			$P\left( t \right)$ & producers of topic $t$\\
 			$C\left( t \right)$ & consumers of topic $t$\\
 			$L_{th}\left( t \right)$ & end-to-end latency constraint for topic $t$\\
-			$P\left[ t \right]$ & broker hosting topic $t$\\
+			$B\left[ t \right]$ & broker hosting topic $t$\\
 			$NC\left( i \right)$ & network coordinate of entity $i$\\
 			$\overline{NC}\left( I \right)$ & centroid network coordinate of entities in $I$\\
 			$d\left( nc_1, nc_2 \right)$ & distance between network coordinates\\
+			$W\left( t \right)$ & Deviation of client NC from centroids of topic $t$\\
 			$W\left( t \right)$ & Deviation of client NC from centroids of topic $t$\\
 			$E\left( t \right)$ & Worst-case end-to-end latency for topic $t$\\
 			$PROC \left( t \right)$ & Processing latency at broker for topic $t$\\
 			\hline
 		\end{tabular}
 	%\end{adjustbox}
-	\caption{Notations used.\todo{Fix the notations based on the actual equations used.}}\label{table:notations}
+	\caption{Notations used.}\label{table:notations}
 \end{table}
 
 \subsection{Broker Selection Policy}
 The set of publishers and subscribers for a topic $t$ is denoted by $P \left( t \right)$ and $C \left( t \right)$ respectively. The worst-case message delivery latency for topic $t$ when served by broker $b$ is represented as shown in \cref{eq:e2e_latency}.
 \begin{equation}
-W\left( t, b \right) = \max\limits_{p \in P\left( t \right)} d \left( NC \left( p\right), NC \left( b\right) \right) + \max\limits_{c \in C\left( t \right)} d \left( NC \left( c\right), NC \left( b\right)\right) + PROC \left( t \right)
+W\left( t, b \right) = \max\limits_{p \in P\left( t \right)} d \left( NC \left( p\right), NC \left( b\right) \right)/2 + \max\limits_{c \in C\left( t \right)} d \left( NC \left( c\right), NC \left( b\right)\right)/2 + PROC \left( t \right)
 \label{eq:e2e_latency}
 \end{equation}
 \cref{eq:e2e_latency} is used the broker selection policy to estimate the worse-case message delivery latency that a given broker can provide for a given topic. The broker selection policy is shown in \cref{algo:broker_sel_algo}. For each topic that needs to be placed on a broker, the policy find the set of candidate brokers that can satisfy the message delivery latency constraint (line 3-4). Next, the policy ranks the topics in increasing order of the number of possible candidates for each topic and starts broker selection in that order (lines 5-6). The aim of the policy is to perform as many successfully place as many topics as possible. Next, if a particular broker can host a given topic without being overloaded, the topic is assigned to that broker (lines 7-9). 
 \begin{algorithm}
-\caption{Broker selection policy algorithm. Inputs are $T$ (set of topics to place on brokers) and $M$ (monitoring data)}\label{algo:broker_sel_algo}
+\caption{Broker selection policy algorithm. Inputs are $T$ (set of topics to place on brokers), current topic-to-broker mapping $B$, and $M$ (monitoring data)}\label{algo:broker_sel_algo}
 \begin{algorithmic}[1]
-\Procedure{SelectBroker}{$T, P, M$}
+\Procedure{SelectBroker}{$T, B, M$}
 \State $F \gets dict\left(\right)$
 \For{$t \in T$}
     \State $F \left[ t \right] \gets get\_feasible\_brokers\_by\_latency \left( t , M\right)$
@@ -126,8 +127,8 @@ W\left( t, b \right) = \max\limits_{p \in P\left( t \right)} d \left( NC \left( 
 \State $\text{sort } T \text{ by increasing } |F \left[ t \right]|$
 \For {$t \in T$}
     \For {$b_{cand} \in F \left[ t \right]$}
-        \If{$can\_host \left( b_{cand}, t, P, M\right)$} \Comment{no broker overload}
-            \State $P \left[ t \right] \gets b_{cand}$
+        \If{$can\_host \left( b_{cand}, t, B, M\right)$} \Comment{no broker overload}
+            \State $B \left[ t \right] \gets b_{cand}$
             \State break
         \EndIf
     \EndFor
@@ -140,30 +141,28 @@ W\left( t, b \right) = \max\limits_{p \in P\left( t \right)} d \left( NC \left( 
 \subsection{Violation Detection Policy}
 The Violation Detection Policy is called periodically, which iterates over all the topics currently in the system and checks if any one of them is violated (lines 4-5). If a topic is experiencing end-to-end latency violation, it is added to the set of topics that need to be migration to a better broker (line 6). Next the policy checks if any broker is overloaded due to too many topics (line 7). In case there is a broker which is overloaded, the policy fetches the topics which are best candidates for migrating out of the overloaded broker (line 9), and adds it to the set of topics to be migrated. Then the policy calls the topic-placement module which uses \cref{algo:broker_sel_algo} for selecting the target broker for hosting each topic (line 11). If the chosen target broker is not the same as the current broker, topic migrations are triggered (lines 14-16).
 \begin{algorithm}
-\caption{Violation Detection Policy algorithm. Inputs are $P_0$ (initial topic partitioning) and $M$ (monitoring data)}\label{viol_detection_algo}
+\caption{Violation Detection Policy algorithm. Inputs are $B_0$ (initial topic partitioning) and $M$ (monitoring data)}\label{viol_detection_algo}
 \begin{algorithmic}[1]
-\Procedure{PerformRepartitioning}{$P_0$, $M$}
+\Procedure{PerformRepartitioning}{$B_0$, $M$}
 \State $R \gets \{\}$ \Comment{set of migration commands}
 \State $T_{migr} \gets \{\}$ \Comment{topics to migrate from curr broker}
-\For{$t \in P_0.topics$}
+\For{$t \in B_0.topics$}
     \If{$latency\_violated \left( t \right)$}
         \State $T_{migr} \gets T_{migr} \cup \{ t \}$
     \EndIf
 \EndFor
 
-%\State $P \gets PlaceTopics \left( T_{migr}, P_0, M \right)$ 
-\State $B_{overload} \gets get\_overloaded\_brokers \left( P_0, M \right)$
+\State $B_{overload} \gets get\_overloaded\_brokers \left( B_0, M \right)$
 \For{$b \in B_{overload}$} \Comment{resource-based detection}
-    \State $T_b \gets get\_topics\_to\_migrate\left(b, P_0, M\right)$
+    \State $T_b \gets get\_topics\_to\_migrate\left(b, B_0, M\right)$
     \State $T_{migr} \gets T_{migr} \cup T_b$
 \EndFor
-
-\State $P \gets PlaceTopics \left( T_{migr}, P_0, M \right)$ 
+\State $B \gets PlaceTopics \left( T_{migr}, B_0, M \right)$ 
 
 \State $R \gets \{\}$ \Comment{set of re-partitioning commands}
-\For {$t \in P_0.topics$}
-    \If {$P\left[ t \right] \neq P_0 \left[ t \right]$}
-        \State $R \gets R \cup \{ \left( t, P_0 \left[ t \right], P \left[ t \right]\right) \}$
+\For {$t \in B_0.topics$}
+    \If {$B\left[ t \right] \neq B_0 \left[ t \right]$}
+        \State $R \gets R \cup \{ \left( t, B_0 \left[ t \right], B \left[ t \right]\right) \}$ \Comment{add previous broker and new broker}
     \EndIf
 \EndFor
 \State $execute\_reconfigs \left( R \right)$ 
@@ -174,10 +173,13 @@ The Violation Detection Policy is called periodically, which iterates over all t
 \section{Distributed Monitoring in ePulsar}
 \label{sec:epulsar_dist_mon}
 \subsection{Distribution of Monitoring Components over Infrastructure}
-\epulsar{} performs monitoring of the network coordinates of clients and broker as well as the message rate of each topic on the broker that is hosting the topic. Since all the relevant metrics of a given topic are present on the broker itself, it can aggregate the topic's metrics to reduce the amount of data that needs to be sent to the Metrics Store via the wide-area network.
+Each client in \epulsar{} hosts a Metric Agent, which monitors the client's network coordinate. Each broker hosts a Metric Agent that monitors its network coordinate and the message rate for each topic. These metrics agents perform Per-Metric Aggregation of each metric with a bucket size of 5 seconds, computing the average over all the measurements in each bucket. 
+\par Each broker hosts the Metrics Server along with it. For each topic that is hosted on a given broker, all clients of that topic report their metric aggregates to the Metrics Server hosted on that broker, which performs an aggregation of the network coordinates as discussed in \cref{sec:epulsar_mon_aggr}. The aggregated metrics are then reported to the control-plane's Metric Store for detecting violations.
+
+%performs monitoring of the network coordinates of clients and broker as well as the message rate of each topic on the broker that is hosting the topic. Since all the relevant metrics of a given topic are present on the broker itself, it can aggregate the topic's metrics to reduce the amount of data that needs to be sent to the Metrics Store via the wide-area network.
 
 \subsection{Monitoring Data Aggregation Logic}
-
+\label{sec:epulsar_mon_aggr}
 \epulsar{} reduces the amount of per-topic monitoring data sent to the Metric Store by aggregating the network coordinates of multiple clients. For each topic $t$ that is hosted on broker $b$, we report the following data items through monitoring. \cref{table:notations} provides a summary of notations used.
 \begin{itemize}
 \item \textbf{Producer and Consumer Centroid.} The producer and consumer centroids provide an approximate location of the network \textit{location} of a topic's clients. We compute the centroid producer coordinate $\overline{NC_P}\left( t \right)$ and centroid consumer coordinate $\overline{NC_C}\left( t \right)$ as follows.
@@ -189,19 +191,19 @@ The Violation Detection Policy is called periodically, which iterates over all t
 \end{equation*}
 \item \textbf{Maximum Deviation from Centroids.} To cope with the loss of information with centroids, we send the maximum deviation of the clients' coordinates from their corresponding centroid. We denote this as $W \left( t \right)$ and it is computed as shown below.
 \begin{equation*}
-\max\limits_{p \in P\left( t \right)} d \left( NC \left( p\right), \overline{NC_P}\left( t \right)\right) + \max\limits_{c \in C\left( t \right)} d \left( NC \left( c\right), \overline{NC_C}\left( t \right)\right)
+W \left( t \right) = \max\limits_{p \in P\left( t \right)} d \left( NC \left( p\right), \overline{NC_P}\left( t \right)\right)/2 + \max\limits_{c \in C\left( t \right)} d \left( NC \left( c\right), \overline{NC_C}\left( t \right)\right)/2
 \end{equation*}
-\item \textbf{Worst-case End-to-end Latency.} For each topic $t$, we compute the worst-case pub-sub latency across all producer-consumer pairs. We denote this as $E \left( t \right)$ and it is computed as follows. 
+\item \textbf{Worst-case Communication Latency.} For each topic $t$, we compute the worst-case communication latency latency across all producer-consumer pairs. We denote this as $E \left( t \right)$ and it is computed as follows. 
 \begin{equation*}
-\max\limits_{p \in P\left( t \right)} d \left( NC \left( p\right), NC\left( P\left[ t \right] \right) \right) + \max\limits_{c \in C\left( t \right)} d \left( NC \left( c\right), NC\left( P\left[ t \right] \right) \right) 
+E \left( t \right) = \max\limits_{p \in P\left( t \right)} d \left( NC \left( p\right), NC\left( B\left[ t \right] \right) \right) / 2 + \max\limits_{c \in C\left( t \right)} d \left( NC \left( c\right), NC\left( B\left[ t \right] \right) \right) / 2
 \end{equation*}
-This information is used to determine whether the current broker, denoted by $P\left[ t \right]$ is meeting the topic's end-to-end pub-sub latency threshold.
+This information is used to determine whether the current broker, denoted by $B\left[ t \right]$ is meeting the topic's end-to-end pub-sub latency threshold.
 \end{itemize}
 
 \par One key point to take note of is that the volume of per-topic monitoring data generated is independent of the number of clients using that topic. Given the high heterogeneity of broker and client network locations in a geo-distributed setting, this aggregation technique significantly reduces monitoring data traffic. By contrast, a naive approach which records the network coordinates of all clients would incur network traffic proportional to the number of clients of each topic. However, the monitoring data does not contain individual client network coordinates anymore, but rather the centroids of producer and consumer clients' network coordinates. Hence, \cref{eq:e2e_latency} in the Broker Selection Policy needs to be updated to use centroid coordinates as shown in \cref{eq:e2e_latency_w_centroids}.
 \begin{equation}
 \label{eq:e2e_latency_w_centroids}
-W \left( t, b\right) = d \left( \overline{NC_P} \left( t \right), NC \left( b \right) \right) + d \left( \overline{NC_C} \left( t \right), NC \left( b \right) \right) + W \left( t \right) 
+W \left( t, b\right) = d \left( \overline{NC_P} \left( t \right), NC \left( b \right) \right) + d \left( \overline{NC_C} \left( t \right), NC \left( b \right) \right) + W \left( t \right) + PROC \left( t \right)
 \vspace{-0.05in}
 \end{equation}
 
