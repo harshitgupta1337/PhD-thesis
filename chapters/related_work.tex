@@ -1,0 +1,13 @@
+\chapter{Related Work}
+
+\section{Edge-centric Publish-Subscribe Systems}
+
+There has been prior work in building edge-centric pub-sub systems, which include EMMA~\cite{emma}, FogMQ~\cite{DBLP:journals/corr/AbdelwahabH16a}, and MutiPub~\cite{multipub}. These systems are meaningful alternatives to ePulsar with respect to their being able to operate on a continuum of geo-distributed infrastructure and allow clietns to treat the entire geo-distributed publish-subscribe infrastructure as one system. However, these systems do not meet the data delivery and/or the scalability needs of the aforementioned applications. EMMA employs specialized gateway nodes which act as the interface between clients and brokers to buffer messages during topic migration between brokers. It maintains a network proximity map between gateways and brokers via active pairwise measurements and connects clients to the broker with lowest network latency. It also performs topic migrations in reaction to client mobility. However, EMMA does not handle message reliability guarantees or at-least-once/exactly-once semantics that are typically offered by cloud-based publish-subscribe systems and expected by application developers. 
+\par FogMQ is an edge-centric publish-subscribe system that aims to attain the scalability of broker-based publish-subscribe architecture along with the low-latency of broker-less architecture. It does so by creating a clone of each client in the proximity of it to handle communication on its behalf. With a large number of participating clients, this design decision will be a huge resource burden on the already scarce edge resources making the system non-scalable. MultiPub aims to provide latency guarantees for a publish-subscribe systems deployed across multiple geo-distributed cloud regions by relying on having detailed information of inter-region latencies, as well as the network latency between every client-broker pair. Although this might be tractable for deployments with a handful of cloud regions, the much denser distribution of edge sites makes monitoring and maintaining such fine-grained latency information infeasible. In addition, a large number of clients would also make the problem of tracking network proximity between clients and brokers intractable.
+
+\section{Application Orchestration}
+\subsection{Application Placement Algorithms}
+\subsection{Edge-centric Application Orchestrator Systems}
+
+
+\section{Data Stores for Geo-Distributed Edge Infrastructure}
