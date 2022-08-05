@@ -137,7 +137,7 @@
     \begin{singlespacing}
     \textbf{\MakeUppercase{\@title}}\\
     \vspace{10\baselineskip}
-    A Doctoral Thesis Proposal\\
+    A Dissertation\\
     Presented to\\
     The Academic Faculty\\
     \vspace{3\baselineskip}
