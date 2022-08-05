@@ -354,8 +354,6 @@ The following abstractions are provided to the control plane of a platform servi
 \end{itemize}
 \par \noindent \textbf{Returns: } A unique identifier for the metric, that can be used to record measurements and query measurements.
 \par The following snippet shows an example, that measures the network latency of an instance of the pipeline stage shown in \cref{fig:app_pipeline} to its downstream component. In the given platform service, the application unit that a metric belongs to is the downstream-most application component, or the root component. In this example, the application unit is the application component instance $L_0$. 
-\todo{Uncomment below listing}
-\begin{comment}
 \begin{minted}{yaml}
 -   entity_id : "L10"
     entity_type: "APP"
@@ -367,7 +365,6 @@ The following abstractions are provided to the control plane of a platform servi
     bucket_size: 5 secs
     aggr_fn: AVG
 \end{minted}
-\end{comment}
 Each metric stream is represented as an ordered sequence of measurements along with their timestamps as shown in \cref{eq:metric_stream}.
 \begin{equation}
 M = \left[ \cdots , \left( t, v \right) , \cdots \right] \text{ where } 0 < t < \infty
@@ -392,13 +389,10 @@ ALIGN^{func}_{B} \left( M \right) = \left[ \cdots , \left( t, v \right) , \cdots
 \item Measurement: A YAML document containing measurement. It can be a nested YAML document in case the metric records complex values.
 \end{itemize}
 \par The parameters for an example call to the record measurement function are shown below.
-\todo{Uncomment below listing}
-\begin{comment}
 \begin{minted}{yaml}
 -   metric_id: "net_latency_L0"
     value: 10.0
 \end{minted}
-\end{comment}
 
 
 %\item Platform-specific definition of the system entity processing all the metrics of a given application unit for performing aggregation and violation detection. For instance, in the case of a publish-subscribe system, all the metrics pertaining to a specific topic can be processed at the broker serving that topic.
@@ -426,8 +420,6 @@ In this section, we show how the end-to-end monitoring mechanism will be used fo
 \begin{enumerate}
 \item The library of the platform service running alongside each client and backend application instance generates two metrics - namely the processing latency and network latency to the immediately downstream application component instance (called \textit{parent}). For application component $e$ denote them as $proc_e$ and $net_e$.\\
 \begin{minipage}{0.45\textwidth}
-\todo{Uncomment below listing}
-\begin{comment}
 \begin{minted}{yaml}
 -   entity_id : "L20"
     entity_type: "CLIENT"
@@ -436,13 +428,10 @@ In this section, we show how the end-to-end monitoring mechanism will be used fo
     bucket_size: 5 secs
     aggr_fn: AVG
 \end{minted}
-\end{comment}
 \end{minipage}%
 \hfill
 \begin{minipage}{0.45\textwidth}
 \begin{tabular}{p{\textwidth}}
-\todo{Uncomment below listing}
-\begin{comment}
 \begin{minted}{yaml}
 -   entity_id : "L10"
     entity_type: "APP"
@@ -451,23 +440,19 @@ In this section, we show how the end-to-end monitoring mechanism will be used fo
     bucket_size: 5 secs
     aggr_fn: AVG
 \end{minted}
-\end{comment}
 \end{tabular}
 \end{minipage}
 
-The above listings show definitions of metrics corresponding to the processing and network latency of the application component instance $L_{20}$ and $L_{10}$ respectively in the application instance shown in \cref{fig:app_pipeline}. Both these component instances pertain to the application unit that is associated with the "root" application component instance $L_0$. The platform service requests for time-alignment of all the metric streams using the function $ALIGN^{AVG}_{5secs}$. 
+The above listings show definitions of metrics corresponding to the processing and network latency of the application component instance $L_{20}$ and $L_{10}$ respectively in the application instance shown in \cref{fig:app_pipeline}. Both these component instances pertain to the application unit that is associated with the ``root'' application component instance $L_0$. The platform service requests for time-alignment of all the metric streams using the function $ALIGN^{AVG}_{5secs}$. 
 \item The control plane policy for detecting violations of end-to-end processing latency receives the callback \textbf{OnNewBucket} for the application unit $L_0$ as soon as a new bucket for all metrics belonging to it are available. 
 
 \begin{comment}
 performs calculations for each of the root application instances, that we denote as $L_0$. It selects the latency metrics corresponding to the clients that are connected to $L_0$ as shown in \cref{fig:app_pipeline}. It uses a query like the following to select the latency metrics for all the clients that are connected to the root application component $L_0$.
 \end{comment}
 
-\todo{Uncomment below listing}
-\begin{comment}
 \begin{minted}{sql}
 SELECT METRICS WITH entity_type="CLIENT" AND app_unit="L0"
 \end{minted}
-\end{comment}
 
 \begin{figure}
 \centering
