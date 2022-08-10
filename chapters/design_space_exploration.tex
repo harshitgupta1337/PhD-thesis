@@ -308,3 +308,7 @@ We evaluate the aforementioned candidate design choices for implementing the end
 \end{figure}
 Finally, \cref{fig:monitoring_response_time} shows the variation of the latency of detecting a violation with the two evaluated design choices. The results show that both Centralized and Distributed Approaches have a similar behavior in terms of the violation detection latency, with the latency being dependent only on the bucket size. 
 \par Hence, we conclude that the Distributed Design choice is not only more scalable in terms of network and CPU usage, but it also provides the same response time as the Centralized approach. Hence, we use it in implementing the end-to-end monitoring mechanism.
+
+
+
+\todo{Conclude ch 4 with a para (perhaps a subsection).  That subsection should say that now that we have determined the three mechanisms which are the cornerstones of this dissertation, the next step is to show how they can be put into use in constructing platform services that will be used by domain experts to construct complex applications.  Introduce pub-sub, orchestrator, and no-sql data store as such platform services (if you have mentioned them earlier it is still fine to reiterate it here “as we mentioned before…”) used by domain experts for constructing complex apps.  Then introduce ch5, 6, and 7 and how they demonstrate using these mechanism in building platform services that cater to the need for latency-sensitive apps.}
