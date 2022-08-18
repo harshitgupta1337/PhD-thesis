@@ -85,6 +85,7 @@ Estimating the network latency between every client and broker pair requires tha
 
 \begin{table}[t]
 	\center
+	\caption{Notations used.}\label{table:notations}
 	%\begin{adjustbox}{width=0.8\columnwidth,center}
 		\begin{tabular}{ |c|c| } 
 			\hline
@@ -105,7 +106,6 @@ Estimating the network latency between every client and broker pair requires tha
 			\hline
 		\end{tabular}
 	%\end{adjustbox}
-	\caption{Notations used.}\label{table:notations}
 \end{table}
 
 \subsection{Broker Selection Policy}
@@ -292,5 +292,10 @@ We consider the infrastructure topology described in \cref{sec:epulsar_eval_scen
 \par We show the E2E latency of a single representative topic from each swarm in \cref{fig:e2e_drone_swarm_aggr}\footnote{To avoid cluttering the figure, we do not show all the topics of each swarm since their behavior is identical.}.
 For each swarm. the E2E latency remains under the latency threshold  (40 ms) for most of the experiment duration. Transient violations of latency threshold occur when a swarm moves into a different MEC zone than the one currently hosting the swarm's topics. \epulsar{}'s monitoring module detects such violations and triggers migration of the swarm's topics to the broker at the new MEC zone, after which the E2E latency returns back under the latency threshold.
 
+\section{Related Work}
+There has been prior work in building edge-centric pub-sub systems, which include EMMA \cite{emma}, FogMQ \cite{DBLP:journals/corr/AbdelwahabH16a}, and MutiPub \cite{multipub}.  However, these systems do not meet the data communication and/or the scalability needs of the aforementioned applications.  EMMA does not handle message reliability guarantees or at-least-once/exactly-once semantics that are typically offered by commercial pub-sub systems. FogMQ relies on creating a clone in the proximity of each device to handle communication on behalf of that device. % Such an architecture resembles a geo-distributed pub-sub system, albeit with one broker entity per client. 
+With a large number of participating clients, this design decision will be a huge resource burden on the already scarce edge resources making the system non-scalable.  MultiPub aims to provide latency guarantees for multi-region pub-sub systems by relying on having detailed information of inter-region latencies, as well as the network latency between every client-broker pair. Although this might be tractable for deployments with a handful of cloud regions, the much denser distribution of edge sites makes monitoring and maintaining such fine-grained latency information infeasible.
+
 \section{Conclusion}
 \label{sec:epulsar_conclusion}
+In conclusion, \epulsar{} is an Edge-centric publish-subscribe system with a control-plane designed to ensure satisfaction of end-to-end message delivery latency constraints for each topic. The key control plane policy of \epulsar{} is selecting a broker for topic placement from a set of geo-distributed brokers. \epulsar{} leverages the network proximity estimation mechanism to select the broker that can satisfy message delivery latency requirement for each topic. It uses the distributed end-to-end monitoring mechanism to detect when a topic's latency threshold is violated and accordingly triggers topic migration. Through evaluations we show that \epulsar{} is able to satisfy the requirements of realistic situation-awareness applications on a realistic Edge infrastructure topology.

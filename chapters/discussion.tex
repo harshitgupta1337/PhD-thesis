@@ -2,27 +2,28 @@
 \label{sec:discussion}
 
 \section{Realizing Proposed Mechanisms in Contemporary Edge Computing Offerings}
-\todo{Add initial text}
+In this section we discuss how the proposed mechanisms can be incorporated into the Edge platform offerings at present, and how they interact with the different stakeholders in the Edge Computing ecosystem.
 \subsection{Stakeholders in Edge Computing}
-In Edge Computing offerings at present, following stakeholders exist.
+The following stakeholders exist in contemporary Edge Computing offerings:
 \par \noindent \textbf{Infrastructure Provider.} The most significant factor that differentiates Edge computing from the existing Cloud computing paradigm is the presence of a large number of geo-distributed infrastructure sites, which can be leveraged to offer compute, storage and networking services. Unlike building datacenters in a remote location, setting up Edge infrastructure capabilities is more complicated. This is because, firstly, multiple sites of real-estate have to be purchased in an urban area and power and network connectivity has to be ensured, which is expensive and cumbersome to manage. Secondly, since users of Edge applications would inevitably connect to the applications running on these sites through a telecommunication network, the Edge sites should be peered efficiently with the telecom network to avoid high access latencies, despite geographical proximity. Hence, it is challenging for a newcomer to set up geo-distributed Edge computing capacity.
-\par Fortunately, there are existing organizations who already manage such a geo-distributed infrastructure for their own purposes - telecommunication providers, such as AT\&T and Verizon. They operate a large number of geo-distributed central offices which are stocked with network functions (NFV) or custom hardware that enable cellular connectivity. Recently, they have been opening up their infrastructure to be used for hosting Edge computing platforms. For instance, Verizon has partnered with Amazon Web Services to offer AWS Wavelength, which is an offering that provides AWS compute and storage services from Edge infrastructure located in several metropolitan areas in the USA \cite{aws_wavelength}. Similarly, AT\&T has partnered with Microsoft to provide Edge computing services \cite{att_microsoft}. Since these Edge sites are within the network of telecommunication providers, application clients would not have to pay extra latency overhead to communicate with them.
+\par Fortunately, there are existing organizations who already manage such a geo-distributed infrastructure for their own purposes - telecommunication providers, such as AT\&T and Verizon. They operate a large number of geo-distributed central offices which are stocked with network functions (NFV) or custom hardware that enable cellular connectivity. Recently, they have been opening up their infrastructure to be used for hosting Edge computing platforms. For instance, Verizon has partnered with Amazon Web Services to offer AWS Wavelength, which is an offering that provides AWS compute and storage services from Edge infrastructure located in several metropolitan areas in the USA \cite{aws_wavelength}. Similarly, AT\&T has partnered with Microsoft to provide Edge computing services \cite{att_microsoft}. Since these Edge sites are within the network of telecommunication providers, application clients would not have to pay extra latency overhead to communicate with them. 
 \par There exist another kind of infrastructure providers, who are solely focused on building edge computing capacity. Examples of such infrastructure providers are Vapor IO \cite{vaporio} and Edge Micro \cite{edge_micro}. These organizations build up facilities to serve as Edge sites and ensure efficient peering to network providers serving users closeby. Because of efficient peering, they are able to offer low-latency access to clients that are connect to them through other networks.
 
 \par \noindent \textbf{Platform Provider.} These are organizations that utilize the infrastructure owned by Infrastructure Providers to run their application platform/middleware. Examples of platform providers are Amazon Web Services and Microsoft Azure, who already have experience in providing such middlewares in the Cloud computing space. The middleware provides by them consists of several platform services that the applications can utilize, such as execution runtimes for applications, key-value stores for data storage and message queues for communication. Usually the same platform services that are offered by the provider in their cloud middleware are offered in their Edge middleware as well. Examples of such offerings are AWS Wavelength, Microsoft Azure Edge Zones, and Azure IoT Edge.
 
-\par \noindent  \textbf{Application Developer. } The application developer utilizes the platform services offered by the platform provider to implement the application logic.  \todo{Fill in more content based on the next sections}
+\par \noindent  \textbf{Application Developer. } The application developer utilizes the platform services offered by the platform provider to implement the application logic. 
 
 \subsection{Dependencies of Proposed Mechanisms on Stakeholders}
-
-\subsubsection{Spatial Context Management Mechanism}
-
+We now discuss the kinds of dependencies that the proposed mechanisms have on the stakeholders of the Edge computing ecosystem. We will break down each mechanism into its constituent components and discuss which stakeholder manages that component.
+\subsubsection{Dynamic Spatial Context Management Mechanism}
+The Dynamic Spatial Context Management mechanism consists of two main components -- (1) the spatial partitioning metadata maintained in the control plane; and (2) the client library that maintains a cache of the current spatial tile and reports client location to the spatial partitioning metadata component. The spatial partitioning metadata has to be maintained within the control plane of the platform service that uses the mechanism. The client library of the mechanism needs to be incorporated into the client library of the platform service.
 \subsubsection{Network Proximity Estimation}
-\todo{Who owns the Edge Gateway?}
+The Network Proximity Estimation mechanism consists of three main components -- (1) Edge Gateways; (2) Network Coordinate Agents on clients; and (3) Network Coordinate Agents on Edge sites. The Edge Gateways will have to be set up and maintained by the infrastructure providers as it is dependent on the network connectivity of clients and independent of the deployment of platform services. Network coordinate agents on the Edge sites would be managed by the infrastructure provider or the platform provider. In case they are managed by the platform provider, they would be able to have agents belonging to different infrastructure providers to be part of the same network coordinate cluster. Network coordinate agents on the clients could be a part of the client library of the platform provider itself, e.g., the client SDK of Azure IoT Edge. It could also be a part of the client library of the platform service.
 
 \subsubsection{End-to-End Monitoring}
+All components of the end-to-end monitoring mechanism would be deployed on the platform provider, possibly with one instance of the monitoring mechanism for each platform service.
 
-\section{Divesting Proposed Mechanisms from the In-Context Implementation}
+%\section{Divesting Proposed Mechanisms from the In-Context Implementation}
 
 \section{Edge-Centric Architecture of Control-Plane}
 
@@ -36,8 +37,7 @@ In \oneedge{}, consider two classes of applications - \textit{coordinated} and \
 \subsection{Improve Coordination between Control-Plane and Data-Plane}
 One of the important objectives of platform services serving situation-awareness applications is their ability to respond to performance violations by performing reconfigurations with agility. Such reconfigurations typically require multiple rounds of communication with the central control-plane and the data-plane components involved. Due to the high WAN latency between control and data-plane components, this process is slowed down, leading to the clients continuing to face performance violations for an extended period of time. \epulsar{} tackles this problem by making the communication between control and data-plane asynchronous, so that the multiple rounds of communication can proceed in parallel, thereby shortening the time required for performing the reconfiguration \cite{epulsar}.
 
-\section{Lessons Learned}
 
-\subsection{}
-
-\subsection{}
+%\section{Lessons Learned}
+%\subsection{}
+%\subsection{}

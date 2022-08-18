@@ -179,8 +179,8 @@ Now we present the system architecture of \oneedge{}, covering the design choice
 \subsection{High-level System Architecture}
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.85\columnwidth]{figures/oneedge/onefog_overview.png}
-\caption{\oneedge{}'s System Architecture. A central controller (left blow-up) coordinates with all the Edge sites (right blow-up).\todo{Needs update}}
+\includegraphics[width=0.85\columnwidth]{figures/oneedge/ctrl_arch.png}
+\caption{\oneedge{}'s System Architecture. A central controller contains the Scheduler, which receives requests either directly from clients or from the monitoring subsystem through violation detection. The Scheduler makes decisions by reading the Aggregate State. Decisions made by the Scheduler are executed on the Edge sites by the Transaction Executor component.}
 \label{fig:system_arch}
 \vspace{-2mm}
 \end{figure*}
@@ -690,14 +690,16 @@ For our evaluations, we use a dataset generated using the ROS~\cite{ros} framewo
 
 \item \textbf{View-Fuse.} This is the collaborative perception application for autonomous driving, based on Zijian Zhang et al. \cite{mapfusionimpl}. This application fuses the objects detected by multiple autonomous vehicles from their respective fields of view to create an expanded world sub-regional view (\Cref{fig:connected_cars_with_slo}), that is then sent back to the vehicles in the same geographical locale to improve collision avoidance decisions. To create a mockup of this application for our evaluation purposes, we first created a dataset using Carla~\cite{carlasim}. Specifically, we used 80+ cars driving through the most complex map directly available in Carla (called Town3). A 15-minute Carla simulation produces a spatio-temporal dataset consisting of object detections by individual vehicles. 
 \end{itemize}
-We run both the applications against the input dataset and profile the execution time of each component. Tables \cref{table:drone_profile} and \cref{table:mapfusion_profile} show the compute profile of different components the Drone and View-Fuse application respectively that we will be using for this evaluation study.
+We run both the applications against the input dataset and profile the execution time of each component. \cref{table:drone_profile} and \cref{table:mapfusion_profile} show the compute profile of different components the Drone and View-Fuse application respectively that we will be using for this evaluation study.
 
 \begin{table}[h!]
 \centering
+\caption{Drone application's compute profile.}
+\label{table:drone_profile}
 \begin{tabular}{||c | c | c | c | c | c ||} 
  \hline
- Component & Maximum & Mean Processing  & CPU Req. & Memory Req. & Latency  \\
- & Clients & Latency & & & Threshold \\
+ Component & Max & Mean Processing  & CPU & Memory & Latency  \\
+ & Clients & Latency & Req. & Req. & Threshold \\
  \hline\hline
  Global Map & 8 & 50 ms & 4 & 2 GB & - \\
  Update & & & & & \\
@@ -712,16 +714,16 @@ We run both the applications against the input dataset and profile the execution
  Component & & & & & \\
  \hline
 \end{tabular}
-\caption{Drone application's compute profile.}
-\label{table:drone_profile}
 \end{table}
 
 \begin{table}[h!]
 \centering
+\caption{MapFusion application's compute profile.}
+\label{table:mapfusion_profile}
 \begin{tabular}{||c | c | c | c | c | c ||} 
  \hline
- Component & Maximum & Mean Processing  & CPU Req. & Memory Req. & Latency  \\
- & Clients & Latency & & & Threshold \\
+ Component & Maximum & Mean Processing  & CPU & Memory & Latency  \\
+ & Clients & Latency & Req. & Req. & Threshold \\
  \hline\hline
  Fusion & 16 & 60 ms & 4 & 2 GB & 100 ms \\
  \hline
@@ -731,8 +733,6 @@ We run both the applications against the input dataset and profile the execution
  (on Client) & & & & & \\
  \hline
 \end{tabular}
-\caption{MapFusion application's compute profile.}
-\label{table:mapfusion_profile}
 \end{table}
 
 \subsubsection{Edge Infrastructure considered}

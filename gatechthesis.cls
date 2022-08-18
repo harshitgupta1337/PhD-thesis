@@ -311,8 +311,20 @@ Date approved: \@approvaldate
 }
 
 % ------------------ summary environment definition ------------------
+
+
+
+%\newenvironment{summary}{
+%    \clearpage
+%    \begin{centering}
+%    \textbf{SUMMARY}\\
+%    \vspace{\baselineskip}
+%    \end{centering}
+%}{
 \newenvironment{summary}{
     \clearpage
+    \phantomsection
+    \addcontentsline{toc}{chapter}{Summary}
     \begin{centering}
     \textbf{SUMMARY}\\
     \vspace{\baselineskip}
