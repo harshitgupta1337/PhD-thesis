@@ -1,4 +1,5 @@
-\chapter{Necessary Mechanisms for Geo-Distributed Operation of Platform Services}
+\chapter{\new{Fundamental Mechanisms for Geo-Distributed Operation of Platform Services}
+\soutnew{Necessary Mechanisms for Geo-Distributed Operation of Platform}}
 \label{sec:mechanisms}
 
 %\section{Introduction}
@@ -241,7 +242,7 @@ The spatial alignment offered by the proposed mechanism remains close to 1.0 for
 \centering
 \includegraphics[width=0.5\linewidth]{figures/mechanisms/spatial_ctx_mgmt/spatial_alignment_cdf.png}
 \caption{\gls{cdf} of Spatial Alignment values over all time instants. Each data point in the \gls{cdf} corresponds to a point in \cref{fig:spatial_alignment_summary}.}
-\label{fig:spatial_alignment_summary}
+\label{fig:spatial_alignment_cdf}
 \end{figure}
 \section{Network Proximity Estimation}
 The critical path of applications' control-loop contains system entities (e.g., clients and application components) communicating with one another and accessing data-items. In a densely geo-distributed and heterogeneous infrastructure such as the Edge, the network latency between a client and an Edge site varies significantly depending on which site the client is communicating with. Similarly, the network latency between different Edge sites is also heterogeneous (as discussed in \cref{sec:nw_prox_prev_work}). Hence the choice of Edge site for hosting compute or data components of an application instance has a significant effect on the perceived end-to-end latency of the application, be it the sense-process-actuate control-loop's latency or the latency of accessing data from other clients for inter-client coordination \cite{sarkar2016theoretical,amarasinghe2018data,naas2017ifogstor,liu2019mobility}. Therefore, placement policies in the control plane of platform services need to be aware of the topology of the underlying infrastructure to make decisions. For instance, in the case of the collaborative perception application, the placement of application components should be such that the end-to-end processing latency is bounded under the application's  threshold. Similarly, in the case of the drone swarm coordination application, the publish-subscribe topic should be placed on a suitable broker node to ensure that the end-to-end message delivery latency is bounded under the application's threshold.  
@@ -343,7 +344,8 @@ We evaluate the performance of the proposed Network Proximity Estimation mechani
 \end{figure}
 
 \section{End-to-End Monitoring Mechanism}
-Thorough monitoring of applications running atop platform services is a non-trivial task because there can be multiple sources of performance violation. For instance, as shown in \cref{fig:pipeline_latencies}, the observed end-to-end latency of the application instance is a sum of the queuing, execution and downstream communication latencies of each operator in the pipeline.  Thus, in order to detect a violation of the end-to-end latency requirement and identify the root-cause requires the monitoring of all the component latency metrics as independent timeseries and their aggregation and analysis. Each platform service has a notion of an \textit{application unit}, that represents an independent set of system entities that do not affect the performance of entities not within the given unit. An example of an application unit is a publish-subscribe topic, that consists of all the producers, consumers and broker hosting that topic. Furthermore, each platform service has its own set of metrics that need to be monitored for each application unit. These metrics then need to be aggregated and analyzed in way that is specific to the platform service for detecting violations. The monitoring mechanism needs to scale with an increasing number of application instances being monitored and impose low overhead on the applications and infrastructure.
+\label{sec:monitoring_mechanism}
+Thorough monitoring of applications running atop platform services is a non-trivial task because there can be multiple sources of performance violation. For instance, as shown in \cref{fig:pipeline_latencies}, the observed end-to-end latency of the application instance is a sum of the queuing, execution and downstream communication latencies of each operator in the pipeline.  Thus, detecting a violation of the end-to-end latency requirement and identifying the root-cause requires monitoring \new{measurements} of all the component latency metrics as independent \new{streams} \soutnew{timeseries} and their aggregation and analysis. Each platform service has a notion of an \textit{application unit}, that represents an independent set of system entities that do not affect the performance of entities not within the given unit. An example of an application unit is a publish-subscribe topic, that consists of all the producers, consumers and broker hosting that topic. Furthermore, each platform service has its own set of \new{metric streams} \soutnew{metrics} that need to be monitored for each application unit. \new{The measurements from these metric streams}\soutnew{These metrics} then need to be aggregated and analyzed in way that is specific to the platform service for detecting violations. The monitoring mechanism needs to scale with an increasing number of application instances being monitored and impose low overhead on the applications and infrastructure.
 \begin{figure}
 \centering
 \includegraphics[width=0.75\linewidth]{figures/mechanisms/monitoring/pipeline_latencies}
@@ -352,45 +354,45 @@ Thorough monitoring of applications running atop platform services is a non-triv
 \end{figure}
 
 \subsection{Control plane policies that need this mechanism}
-Situation-awareness applications require that the end-to-end latency requirement is satisfied for the entire lifetime of the application, so that correct functionality can be guaranteed. However, given the constant mobility of end-clients and the stringent latency requirements, their requirements are likely to be violated repeatedly and frequently. For instance, a car moving away for the Edge Site currently serving the vehicle-local processing component would incur higher end-to-end processing latency due to higher communication delays. Hence, the control plane of the platform services are required to constantly monitor the running applications for such violations, perform root-cause analysis for determining the cause of the violation, and take appropriate reconfiguration action(s) to resolve the violation. An example of such a reconfiguration would be the migration of the application component to an Edge Site that is closer (in terms of network proximity) to the end-client to ensure end-to-end latency satisfaction.
+Situation-awareness applications require that the end-to-end latency requirement is satisfied for the entire lifetime of the application, so that correct functionality can be guaranteed. However, given the constant mobility of end-clients and the stringent latency requirements, their requirements are likely to be violated repeatedly and frequently. For instance, a car moving away for the Edge Site currently serving the vehicle-local processing component would incur higher end-to-end processing latency due to higher communication delays. Hence, the control plane of the platform services are required to constantly monitor the running applications for such violations, perform root-cause analysis for determining the cause of the violation, and take appropriate reconfiguration action(s) to resolve the violation. In the above example, a reconfiguration would involve the migration of the application component to an Edge Site that is closer (in terms of network proximity) to the end-client to ensure end-to-end latency satisfaction.
 
 \subsection{Shortcomings of previous work}
 \label{sec:monitor_prev_work}
-\par Application monitoring has been an active area of work in the cloud computing space with a number of research projects and commercial offerings available. In the context of cloud computing, applications typically do not possess end-to-end latency requirements and the goal of monitoring is to ensure that the tail latency of a given service (that could consist of multiple application components) does not increase significantly. Prior art such as Prometheus \cite{prometheus} and Monasca \cite{monasca} do not support the aggregation of multiple metrics to study the behavior of end-to-end latency. Furthermore, their architecture is a fully centralized one, resulting in the use of network bandwidth to send the monitoring data to one specific location (e.g., the Cloud).
-\par Monitoring systems designed for edge computing environments also suffer from limitations, wherein they aggregate measured metrics over geographical regions instead of aggregating multiple metrics pertaining to the same application instance \cite{fmone, gonccalves2021dynamic}. Such systems are not capable of detecting violations of end-to-end performance constraints. Previous contributions to building systems services such as publish-subscribe systems \cite{emma} and distributed application runtimes \cite{foglets} consist of monitoring subsystems that only monitor the the network connectivity between a client and the Edge site that it is connected directly to. Since these solutions do not consider end-to-end latency as the primary metric, they would result in triggering more reconfigurations to keep clients connected to the closest Edge site than needed.
+\par Application monitoring has been an active area of work in the cloud computing space with a number of research projects and commercial offerings available. In the context of cloud computing, applications typically do not possess end-to-end latency requirements and the goal of monitoring is to ensure that the tail latency of a given service (that could consist of multiple application components) does not increase significantly. Prior art such as Prometheus \cite{prometheus} and Monasca \cite{monasca} do not support the aggregation of multiple \soutnew{metrics}\new{metric streams} to study the behavior of end-to-end latency. Furthermore, their architecture is a fully centralized one, resulting in the use of network bandwidth to send the monitoring data to one specific location (e.g., the Cloud).
+\par Monitoring systems designed for Edge computing environments also suffer from limitations, wherein they aggregate \new{measurements from metric streams}\soutnew{measured metrics} over geographical regions instead of aggregating multiple \new{metric streams}\soutnew{metrics} pertaining to the same application instance \cite{fmone, gonccalves2021dynamic}. Such systems are not capable of detecting violations of end-to-end latency constraints. Previous contributions to building systems services such as publish-subscribe systems \cite{emma} and distributed application runtimes \cite{foglets} consist of monitoring subsystems that only monitor the the network connectivity between a client and the Edge site that it is connected directly to. Since these solutions do not consider end-to-end latency as the primary metric, they result in triggering more reconfigurations to keep clients connected to the closest Edge site than needed.
 \begin{figure}
 \centering
 \includegraphics[width=0.75\linewidth]{figures/mechanisms/monitoring/migrations_count_greedy.png}
 \caption{Number of migrations triggered by the Greedy monitoring approach along with the actual number violations faced by clients. The end-to-end latency threshold is varied along the x-axis.}
 \label{fig:migration_count}
 \end{figure}
-\par We now show an evaluation of a greedy monitoring approach that aims to minimize the last-mile network latency between the client and the Edge site it directly connects to. The metric of interest is the number of migrations triggered by such a policy, which should be compared to the number of times that the application's threshold is  violated - where a migration is actually needed. We simulate the mobility of 200 independent clients in the city of Shanghai using the Random Waypoint mobility model and track the number of migrations triggered by both the greedy policy. In \cref{fig:migration_count}, we present the migrations triggered by the greedy policy and the number of latency violations for each client with increasing end-to-end latency bound. We see that as the end-to-end latency bound increases, the number latency violations decreases, but the number of migrations triggered by greedy policy remaings the same. This behavior is explained by the fact that although the greedy policy triggers the same number of migrations as it is independent of the end-to-end latency constraint, the number of latency violations decreases with an increase in the threshold. 
-\par The limitations of an approach that considers only a component of the end-to-end latency necessitates that we come up with a mechanism for monitoring the end-to-end latency by analyzing all the component latencies within it. Violation detection needs to be performed for each application-level unit, or application instance, such as a publish-subscribe topic, or one instance of an application pipeline (as shown in \cref{fig:pipeline_latencies}). Hence, metrics that belong to the same application unit should be aggregated together for violation detection and root-cause analysis to identify the source of the violation.
+\par We show an evaluation of a greedy monitoring approach that aims to minimize the last-mile network latency between the client and the Edge site it directly connects to. The metric of interest is the number of migrations triggered by such a policy, which should be compared to the number of times that the application's latency threshold is actually violated - where a migration is indeed necessary. We simulate the mobility of 200 independent clients in the city of Shanghai using the Random Waypoint mobility model and track the number of migrations triggered by the greedy policy. In \cref{fig:migration_count}, we present the migrations triggered by the greedy policy and the number of latency violations for each client with increasing end-to-end latency bound. We see that as the end-to-end latency bound increases, the number of latency violations decreases, but the number of migrations triggered by the greedy policy remains the same. This behavior is explained by the fact that although the greedy policy triggers the same number of migrations as it is independent of the end-to-end latency constraint, the number of latency violations decreases with an increase in the threshold. 
+\par The limitations of an approach that considers only a component of the end-to-end latency necessitates that we come up with a mechanism for monitoring the end-to-end latency by analyzing all the component latencies within it. Violation detection needs to be performed for each application-level unit, or application instance, such as a publish-subscribe topic, or one instance of an application pipeline (as shown in \cref{fig:pipeline_latencies}). Hence, \new{measurements from metric streams}\soutnew{metrics} that belong to the same application unit should be aggregated together for violation detection and root-cause analysis to identify the source of the violation.
 
 \subsection{A New Mechanism for End to End Latency Monitoring}
-We now present a mechanism for end-to-end latency monitoring that aggregates and analyzes multiple component latency metrics that make up the end-to-end latency.
+We now present a mechanism for end-to-end latency monitoring that aggregates and analyzes \new{metric streams for multiple components of the end-to-end latency}\soutnew{multiple component latency metrics that make up the end-to-end latency}.
 \subsubsection{Interface exposed to the control plane}
-The following abstractions are provided to the control plane of a platform service when using the end-to-end monitoring mechanism.
+The following abstractions are provided to the control plane of a platform service for using the end-to-end monitoring mechanism.
 \begin{itemize}
-\item \textbf{RegisterAppUnit.} Registration of an Application Unit when it is created. For instance, when a new topic is created in a publish-subscribe system, the topic should be registered as a new Application Unit. The Monitoring mechanism uses the identifier of the application unit to identify the metrics that pertain to it, and perform end-to-end aggregation on them. 
+\item \textbf{RegisterAppUnit.} Registration of an Application Unit when it is created. For instance, when a new topic is created in a publish-subscribe system, the topic should be registered as a new Application Unit. The Monitoring mechanism uses the identifier of the application unit to identify the \new{metric streams}\soutnew{metrics} that pertain to it, and perform end-to-end aggregation on them. 
 \par \noindent \textbf{Inputs}:
 \begin{itemize}
 \item AppUnitId: The ID of the application unit being registered.
 \end{itemize}
 
-\item \textbf{RegisterMetric.} System components can register custom metrics and publish measurements to them. The metrics are annotated with the application unit that they correspond do, as well as custom platform-specific tags. 
+\item \new{\textbf{RegisterMetricStream.}}\soutnew{\textbf{RegisterMetric.}} System components can register custom \new{metric streams}\soutnew{metrics} and publish their measurements. The \new{metric streams}\soutnew{metrics} are annotated with the application unit that they correspond do, as well as custom platform-specific tags. 
 \par \noindent \textbf{Inputs}:
 \begin{itemize}
-\item EntityID: The ID of the entity that this metric pertains to.
-\item MetricType: A string value denoting the type of metric, that is used for querying them.
-\item AppUnitId: The ID of the application unit that this metric belongs.
-\item Labels: A dictionary containing a set of key-value pairs, each containing a platform-specific information about the metric.
-\item ValueSchema: A schema in YAML format that defines the data-structure of measurements for this metric. It is particularly useful for defining complex metrics. Primitive datatypes can be represented by a string (e.g., int or str).
+\item EntityID: The ID of the entity that this \new{metric stream}\soutnew{metric} pertains to.
+\item MetricType: A string value denoting the type of \new{metric stream}\soutnew{metric}, that is used for querying them.
+\item AppUnitId: The ID of the application unit that this \new{metric stream}\soutnew{metric} belongs to.
+\item Labels: A dictionary containing a set of key-value pairs, each containing a platform-specific information about the \new{metric stream}\soutnew{metric}.
+\item ValueSchema: A schema in YAML format that defines the data-structure of measurements for this \new{metric stream}\soutnew{metric}. It is particularly useful for defining complex \new{metric streams}\soutnew{metric}. Primitive datatypes can be represented by a string (e.g., int or str).
 \item BucketSize: The size of the bucket for data aggregation.
 \item AggregationFunction: The function to use for aggregation. The mechanism should support basic functions such as Mean, Median, Min, Max and percentile values.
 \end{itemize}
-\par \noindent \textbf{Returns: } A unique identifier for the metric, that can be used to record measurements and query measurements.
-\par The following snippet shows an example, that measures the network latency of an instance of the pipeline stage shown in \cref{fig:app_pipeline} to its downstream component. In the given platform service, the application unit that a metric belongs to is the downstream-most application component, or the root component. In this example, the application unit is the application component instance $L_0$. 
+\par \noindent \textbf{Returns: } A unique identifier for the \new{metric stream}\soutnew{metric}, that can be used to record measurements and query measurements.
+\par The following snippet shows an example, that measures the network latency of an instance of the pipeline stage shown in \cref{fig:app_pipeline} to its downstream component. In the given platform service, the application unit that a \new{metric stream}\soutnew{metric} belongs to is the downstream-most application component, or the root component. In this example, the application unit is the application component instance $L_0$. 
 \begin{minted}{yaml}
 -   entity_id : "L10"
     entity_type: "APP"
@@ -407,23 +409,25 @@ Each metric stream is represented as an ordered sequence of measurements along w
 M = \left[ \cdots , \left( t, v \right) , \cdots \right] \text{ where } 0 < t < \infty
 \label{eq:metric_stream}
 \end{equation}
-The mechanism time-aligns the measurements for a specific metric into well-defined buckets, that is necessary as a pre-processing step before multiple metrics can be aggregated together. Since different metrics are likely to be recorded at different instants in time, aligning them in time allows the values from different metrics to be processed together, such that two values from different metrics that were collected at roughly the same time can be processed together\footnote{We assume that clock skew between the entities recording measurements is significantly less than the bucket size. This is a reasonable assumption because typical clock skews are not expected to be more than few 10s of milliseconds}. \cref{fig:time_alignment} illustrates the time alignment of a metric for a fixed size time bucket, and all measurements within a given bucket are aggregated by taking an average over them. The platform service is supposed to provide the bucket size $B$ (in units of time) and the aggregation function $func$ for aggregating a metric $M$. As described in \cref{eq:metric_stream}, the alignment of a metric involves aggregating all the measurements within a particular bucket interval using the provided aggregation function to form one value.
+The mechanism time-aligns the measurements for a specific \new{metric stream}\soutnew{metric} into well-defined buckets, that is necessary as a pre-processing step before multiple \new{metric streams}\soutnew{metrics} can be aggregated together. Since measurements from different \new{metric streams}\soutnew{metrics} are likely to be recorded at different instants in time, aligning them in time allows measurements from different \new{metric streams}\soutnew{metrics} to be processed together, such that two measurements from different \new{metric streams}\soutnew{metrics} that were collected at roughly the same time can be processed together\footnote{We assume that clock skew between the entities recording measurements is significantly less than the bucket size. This is a reasonable assumption because typical clock skews are not expected to be more than a few 10s of milliseconds}.
+\new{This bucket-based time-alignment approach is an approximation of an ideal end-to-end aggregation of component latencies by recording measurements to every data-item generated by the data-plane. Such an ideal approach is infeasible for two reasons: (a) it behooves instrumenting the application components to record latency incurred by data plane actions which is neither desirable nor possible since the application logic is in the purview of the developer; and (b) it will vastly increase the amount of communication incurred by the system for monitoring the end-to-end latency. Therefore, we choose the aforementioned bucket-based approach.}
+\cref{fig:time_alignment} illustrates the time alignment of a \new{metric stream}\soutnew{metric} for a fixed size time bucket, and all measurements within a given bucket are aggregated by taking an average over them. The platform service is supposed to provide the bucket size $B$ (in units of time) and the aggregation function $func$ for aggregating a \new{metric stream}\soutnew{metric} $M$. As described in \cref{eq:metric_stream_alignment}, the alignment of a \new{metric stream}\soutnew{metric} involves aggregating all the measurements within a particular bucket interval using the provided aggregation function to form one measurement.
 \begin{figure}
 \centering
 \includegraphics[width=\linewidth]{figures/mechanisms/monitoring/time_alignment}
-\caption{Illustration of time alignment of metrics. The individual measurements (denoted by green arrows) within each time bucket are aggregated using the average function to generate the measurement for that bucket (shown by red arrows). The dotted vertical lines indicate the boundaries of buckets. The time alignment function takes as input a metric stream and time bucket size and returns another stream.}
+\caption{Illustration of time alignment of \new{metric streams}\soutnew{metrics}. The individual measurements (denoted by green arrows) within each time bucket are aggregated using the average function to generate the measurement for that bucket (shown by red arrows). The dotted vertical lines indicate the boundaries of buckets. The time alignment function takes as input a metric stream and time bucket size and returns another stream.}
 \label{fig:time_alignment}
 \end{figure}
 \begin{multline}
 ALIGN^{func}_{B} \left( M \right) = \left[ \cdots , \left( t, v \right) , \cdots \right] \text{ where } t = n\cdot B \text{ and } 0 < n < \infty \\ \text{ and } v = func \left( \{ v' : \left( t', v'\right) \in M \text{ and } B\cdot \left( n-1\right) < t' \leq n \cdot B \} \right)
-\label{eq:metric_stream}
+\label{eq:metric_stream_alignment}
 \end{multline}
 
-\item \textbf{RecordMeasurement.} Platform service components can record measurements for a specific metric  using the ID of the entity and the metric type. 
+\item \textbf{RecordMeasurement.} Platform service components can record measurements for a specific \new{metric stream}\soutnew{metric} using the ID of the entity and the metric \new{stream} type. 
 \par \noindent \textbf{Inputs:}
 \begin{itemize}
-\item MetricID: The ID of the metric that this measurement pertains.
-\item Measurement: A YAML document containing measurement. It can be a nested YAML document in case the metric records complex values.
+\item MetricID: The ID of the \new{metric stream}\soutnew{metric} that this measurement pertains to.
+\item Measurement: A YAML document containing measurement. It can be a nested YAML document in case the metric \new{stream} records complex values.
 \end{itemize}
 \par The parameters for an example call to the record measurement function are shown below.
 \begin{minted}{yaml}
@@ -431,30 +435,29 @@ ALIGN^{func}_{B} \left( M \right) = \left[ \cdots , \left( t, v \right) , \cdots
     value: 10.0
 \end{minted}
 
-
 %\item Platform-specific definition of the system entity processing all the metrics of a given application unit for performing aggregation and violation detection. For instance, in the case of a publish-subscribe system, all the metrics pertaining to a specific topic can be processed at the broker serving that topic.
-\item \textbf{OnNewBucket.} This is a callback function that is called when all the metrics belonging to a particular application unit are ready for a given bucket. The receiver of this callback is supposed to be an entity in the control plane of the platform service, that receives the end-to-end aggregated view of all the metrics associated with a particular application unit. The control plane entity uses these metrics to make violation detection and reconfiguration decisions.
+\item \textbf{OnNewBucket.} This is a callback function that is called when \new{time-aligned measurements of} all the \new{metric streams}\soutnew{metrics} belonging to a particular application unit are ready for a given bucket. The receiver of this callback is supposed to be an entity in the control plane of the platform service, that receives the end-to-end aggregated view of all the \new{metric streams}\soutnew{metrics} associated with a particular application unit. The control plane entity uses these \new{metric streams}\soutnew{metrics} to make violation detection and reconfiguration decisions.
 \par \noindent \textbf{Inputs:}
 \begin{itemize}
-\item AppUnitID: ID of the application unit that this set of metrics belongs to.
+\item AppUnitID: ID of the application unit that this set of \new{metric streams}\soutnew{metrics} belongs to.
 \item Bucket. The timestamp of the bucket that is being reported.
-\item Values. A collection of metrics with their metadata and aggregated values for this bucket.
+\item Values. A collection of \new{metric streams}\soutnew{metrics} with their metadata and aggregated values for this bucket.
 \end{itemize}
-\item \textbf{QueryMetrics. }The logic provided to the end-to-end monitoring mechanism via the ProcessMetrics interface should be able to query metrics using their labels. 
+\item \textbf{QueryMetrics. }The logic provided to the end-to-end monitoring mechanism via the ProcessMetrics interface should be able to query \new{metric streams}\soutnew{metrics} using their labels. 
 \par \noindent \textbf{Inputs:}
 \begin{itemize}
-\item MetricID: ID of the metric being queried.
+\item MetricID: ID of the \new{metric stream}\soutnew{metric} being queried.
 \item AppUnitID: ID of the application unit being queried.
-\item BucketTimeRange: A range of time within which all buckets for the given metric or application unit need to be returned.
+\item BucketTimeRange: A range of time within which all buckets for the given \new{metric stream}\soutnew{metric} or application unit need to be returned.
 \end{itemize}
-\par \noindent \textbf{Returns:} A list of buckets, each containing the timestamp of the respective bucket and a set of values for all the queried metrics for that bucket.
+\par \noindent \textbf{Returns:} A list of buckets, each containing the timestamp of the respective bucket and a set of values for all the queried \new{metric streams}\soutnew{metrics} for that bucket.
 
 \end{itemize}
 
 \subsubsection{Demonstration of using end-to-end monitoring for control plane policy of a platform service}
-In this section, we show how the end-to-end monitoring mechanism will be used for implementing the control plane policy for detecting violations of end-to-end processing latency for a geo-distributed application orchestrator system. For this example, we would restrict the discussion to clients and application instances for a single application unit, but the approach generalizes to multiple application units.
+In this section, we show how the end-to-end monitoring mechanism will be used for implementing a policy for detecting violations of end-to-end processing latency for application instances running on a geo-distributed Edge infrastructure, as part of the control plane of an application orchestrator. For this example, we restrict the discussion to clients and application instances for a single application unit, but the approach generalizes to multiple application units.
 \begin{enumerate}
-\item The library of the platform service running alongside each client and backend application instance generates two metrics - namely the processing latency and network latency to the immediately downstream application component instance. For an application component $e$ we denote them as $proc_e$ and $net_e$.\\
+\item The library of the platform service running alongside each client and backend application instance generates two \new{metric streams}\soutnew{metrics} - namely the processing latency and network latency to the immediately downstream application component instance. For an application component $e$ we denote them as $proc_e$ and $net_e$.\\
 \begin{minipage}{0.45\textwidth}
 \begin{minted}{yaml}
 -   entity_id : "L20"
@@ -479,8 +482,8 @@ In this section, we show how the end-to-end monitoring mechanism will be used fo
 \end{tabular}
 \end{minipage}
 
-The above listings show definitions of metrics corresponding to the processing and network latency of the application component instance $L_{20}$ and $L_{10}$ respectively in the application instance shown in \cref{fig:app_pipeline}. Both these component instances pertain to the application unit that is associated with the ``root'' application component instance $L_0$. The platform service requests for time-alignment of all the metric streams using the function $ALIGN^{AVG}_{5secs}$. 
-\item The control plane policy for detecting violations of end-to-end processing latency receives the callback \textbf{OnNewBucket} for the application unit $L_0$ as soon as a new bucket for all metrics belonging to it are available. 
+The above listings show definitions of \new{metric streams}\soutnew{metrics} corresponding to the processing and network latency of the application component instance $L_{20}$ and $L_{10}$ respectively in the application instance shown in \cref{fig:app_pipeline}. Both these component latencies pertain to the application unit that is associated with the ``root'' application component instance $L_0$. The platform service requests for time-alignment of all the metric streams using the function $ALIGN^{AVG}_{5secs}$. 
+\item The control plane policy for detecting violations of end-to-end processing latency receives the callback \textbf{OnNewBucket} for the application unit $L_0$ as soon as a new bucket for all \new{metric streams}\soutnew{metrics} belonging to it are available. 
 
 \begin{comment}
 performs calculations for each of the root application instances, that we denote as $L_0$. It selects the latency metrics corresponding to the clients that are connected to $L_0$ as shown in \cref{fig:app_pipeline}. It uses a query like the following to select the latency metrics for all the clients that are connected to the root application component $L_0$.
@@ -497,7 +500,7 @@ SELECT METRICS WITH
 \caption{Schematic of a typical situation-awareness application. The application model resembles a tree, with the leaf vertices corresponding to clients. Each vertex that is not a leaf is an application instance running on the backend infrastructure (Edge-Cloud continuum). Each vertex processes data generated by the upstream vertices and sends its output data to the downstream vertex (if any).}
 \label{fig:app_pipeline}
 \end{figure}
-\item The above set of metrics are then grouped by the field $entity\_ID$ because they contain both processing latency and network latency metrics for each client. Grouping them by $entity\_ID$ allows the policy to separate the metrics of a specific entity from other entity.
+\item The above set of \new{metric streams}\soutnew{metrics} are then grouped by the field $entity\_ID$ because they contain measurements for both processing latency and network latency for each client. Grouping them by $entity\_ID$ allows the policy to separate the \new{metric streams}\soutnew{metrics} of a specific entity from other entities.
 \item For each client component $c$, the policy computes the set of application components $S_c$ that process data generated by $c$. The following pseudocode illustrates this computation.
 \begin{algorithmic}
 \State $n \gets c$

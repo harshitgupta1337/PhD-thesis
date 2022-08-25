@@ -52,19 +52,19 @@ We evaluate two spatial partitioning techniques that are common in the literatur
   \centering
   \includegraphics[width=\linewidth]{figures/design_space/spatial/metrics_Grid.png}
   \caption{Variation of metrics of interest for the static partitioning technique with varying size of each partition.}
-  \label{fig:static_part}
+  \label{fig:static_part_metrics}
 \end{subfigure}
 ~~~~
 \begin{subfigure}{0.45\textwidth}
   \centering
   \includegraphics[width=\linewidth]{figures/design_space/spatial/metrics_KDTree.png}
   \caption{Variation of metrics of interest for the KD-Tree based dynamic spatial partitioning technique with changing occupancy threshold per tile.}
-  \label{fig:kdtree_part}
+  \label{fig:kdtree_part_metrics}
 \end{subfigure}\par\medskip
 \end{figure}
 
-We first evaluate the performance of the Static Partitioning technique against the aforementioned client workload. We evaluate the two metrics of interest - namely Maximum Occupancy and Number of Active Tiles. The evaluation is done with several different configurations of each partitioning technique. \cref{fig:static_part} shows the variation of the maximum occupancy and the number of active tiles as a function of the side-length of each geographical partition. As the size of the grid partition increases, the maximum occupancy grows, along with a decrease in the number of active tiles. This tradeoff is shown in \cref{fig:spatial_tradeoff} as well.
-\par Next we perform the same experiment with the KD-Tree based spatial partitioning technique, wherein we configure the Occupancy Threshold for each tile. We vary the occupancy threshold from 8 to 32 and plot the metrics of interest in \cref{fig:kdtree_part}. The metrics show a similar behavior as in \cref{fig:static_part}. As the occupancy threshold increases, the number of active tiles that exist in the system decreases, because each tile can hold more clients. In addition, the increase of occupancy threshold also results in higher maximum occupancy in the system.
+We first evaluate the performance of the Static Partitioning technique against the aforementioned client workload. We evaluate the two metrics of interest - namely Maximum Occupancy and Number of Active Tiles. The evaluation is done with several different configurations of each partitioning technique. \cref{fig:static_part_metrics} shows the variation of the maximum occupancy and the number of active tiles as a function of the side-length of each geographical partition. As the size of the grid partition increases, the maximum occupancy grows, along with a decrease in the number of active tiles. This tradeoff is shown in \cref{fig:spatial_tradeoff} as well.
+\par Next we perform the same experiment with the KD-Tree based spatial partitioning technique, wherein we configure the Occupancy Threshold for each tile. We vary the occupancy threshold from 8 to 32 and plot the metrics of interest in \cref{fig:kdtree_part_metrics}. The metrics show a similar behavior as in \cref{fig:static_part_metrics}. As the occupancy threshold increases, the number of active tiles that exist in the system decreases, because each tile can hold more clients. In addition, the increase of occupancy threshold also results in higher maximum occupancy in the system.
 
 \begin{figure}
 \centering
@@ -201,6 +201,7 @@ Control-plane policies would frequently query the centralized repository of netw
 \end{figure}
 
 \par \cref{fig:metadata_size} shows how the metadata size grows with increasing number of agents. Since the pairwise measurements based design would need to store the network latency between each pair of agents, the size of the metadata grows quadratically. However, the metadata for the network coordinates based approach consists of one coordinate per agent, that amounts to 44 bytes and grows linearly.
+\par \new{As we show in \cref{sec:epulsar} and \cref{sec:oneedge}, each client device and Edge site run a network proximity agent. Therefore under typical Edge computing scenarios, we expect the number of agents deployed atop Edge sites and clients to range in the thousands. At such a scale, the network coordinates based approach significantly outperforms the pairwise measurements based approach in terms of number of messages exchanged and amount of network proximity metadata to be stored in the entity that manages the control policy.}
 
 \subsection{Running Network Coordinate Agents on Mobile Clients}
 Client mobility results in the change of network routing between client and the Edge infrastructure, since the network access point to which the client is connected changes. The change of network access points results in a change in network latencies to reach the Edge sites, that affects the ground-truth on which the network coordinates protocol relies for converging to stable coordinates. The end result of these perturbations is a deterioration of the RMSE of network latency estimation, that is shown in \cref{fig:mobility_nc_rmse}. To evaluate the performance of the network coordinates protocol used in the Network Proximity Estimation mechanism, we evaluate the protocol with varying degrees of client mobility. Client mobility affects network coordinates protocol primarily by continuously changing the network access point used by clients to connect to the Edge infrastructure. Hence, we emulate different speeds of client mobility by controlling the average time between network access point changes for each client. The time between two consecutive access point changes for a client is sampled from an exponential distribution with the mean of the distribution set as mentioned above.
@@ -236,7 +237,7 @@ Mobile devices invariably connect to the Internet via a nearby gateway node that
 
 \section{Distributed End-to-End Monitoring}
 \label{sec:e2e_mon_dse}
-The data-plane of applications using a platform service usually comprises multiple components, with each component performing a specific action, and incurring latency. The latency incurred by each such component adds toward the end-to-end latency of the application, that is expected to be lower than a certain threshold by the developer. Hence, the end-to-end monitoring mechanism aims to provide the ability to monitor the end-to-end latency of the data-plane for a variety of applications running on different platform services. We propose to do so by measuring all individual component latencies independently. The collected metrics are then aligned with respect to time using their timestamps and summed up to compute the end-to-end latency. The end-to-end latency estimate can then be used to check whether the constraints specified by developer have been violated. In the case of detecting a violation, the individual component latencies are used for performing a root-cause analysis to detect the component latency that is the source of the violation.
+The data-plane of applications using a platform service usually comprises multiple components, with each component performing a specific action, and incurring latency. The latency incurred by each such component adds toward the end-to-end latency of the application, that is expected to be lower than a certain threshold by the developer. Hence, the end-to-end monitoring mechanism aims to provide the ability to monitor the end-to-end latency of the data-plane for a variety of applications running on different platform services. We propose to do so by measuring all individual component latencies independently. The collected measurements of these metrics streams are then aligned with respect to time using their timestamps and summed up to compute the end-to-end latency. The end-to-end latency estimate can then be used to check whether the constraints specified by developer have been violated. In the case of detecting a violation, the measurements of individual component latencies are used for performing a root-cause analysis to detect the component latency that is the source of the violation.
 
 \subsection{Logical Components in the Monitoring Mechanism}
 \label{sec:monitoring_functions}
@@ -247,32 +248,32 @@ The data-plane of applications using a platform service usually comprises multip
 \label{fig:monitoring_functions}
 \end{figure}
 \cref{fig:monitoring_functions} shows the logical functions that we propose as a part of the end-to-end monitoring mechanism. These functions perform all the necessary actions that are needed by typical platform services in order to continuously serve applications' desired quality of service.
-\subsubsection{Metrics Emitter}
-The Metrics Emitter component represents the platform service component generating measurements for a metric. The Metric Emitter could be the client library on a certain client device, an application instance or a platform service component running on an Edge site. 
-\subsubsection{Per-Metric Aggregation}
-The Metrics Emitter generates raw measurements that are processed by the Per-Metric Aggregation function, that time-aligns the metric measurements while performing an aggregation as well to reduce the data volume. The output of the per-metric aggregation component is a stream of time-aligned measurement values that are emitted at regular intervals. The time interval between two consecutive measurements emitted by the per-metric aggregation component is equal to the bucket-size parameter of the time-alignment process. The timestamp associated with each aggregated time-aligned measurement values in the output stream is the start timestamp of the bucket.
+\subsubsection{Metric \new{Stream} Emitter}
+The Metric \new{Stream} Emitter component represents the platform service component generating measurements for a metric. The Metric \new{Stream} Emitter could be the client library on a certain client device, an application instance or a platform service component running on an Edge site. 
+\subsubsection{Per-\new{Stream}\soutnew{Metric} Aggregation}
+The Metric \new{Stream} Emitter generates raw measurements that are processed by the Per-\new{Stream}\soutnew{Metric} Aggregation function, that time-aligns the metric measurements while performing an aggregation as well to reduce the data volume. The output of the per-metric aggregation component is a stream of time-aligned measurement values that are emitted at regular intervals. The time interval between two consecutive measurements emitted by the per-metric aggregation component is equal to the bucket-size parameter of the time-alignment process. The timestamp associated with each aggregated time-aligned measurement values in the output stream is the start timestamp of the bucket.
 
-\subsubsection{Multi-Metric Aggregation}
-The Multi-Metric Aggregation function takes multiple time-aligned metrics at a particular timestamp as input and runs a platform-specific function to generate an aggregated value for that timestamp. 
+\subsubsection{\new{Cross-Stream}\soutnew{Multi-Metric} Aggregation}
+The \new{Cross-Stream}\soutnew{Multi-Metric} Aggregation function takes multiple time-aligned metric streams at a particular timestamp as input and runs a platform-specific function to generate an aggregated value for that timestamp. 
 
 \subsubsection{Policy Execution}
-The control-plane policies then read the aggregated statistics generated by multi-metric aggregation as well as the time-aligned metrics to make decisions such as whether a certain application instance is undergoing performance violation and subsequently determining the root-cause of the violation.
+The control-plane policies then read the aggregated statistics generated by \new{cross-stream}\soutnew{multi-metric} aggregation as well as the time-aligned \new{metric streams}\soutnew{metrics} to make decisions such as whether a certain application instance is undergoing performance violation and subsequently determining the root-cause of the violation.
 
 \subsection{Design of the core components of end-to-end monitoring mechanism}
 \subsubsection{Metrics Agent}
-The Metrics Agent component is the one that is deployed alongside application and platform service components that need to be monitored, and acts as the interface between the system components and the monitoring system. It is deployed as part of the client library or the application runtime or as a side-car of the platform service components. It provides interfaces for application and platform service components to register metrics and record observations for those metrics. 
+The Metrics Agent component is the one that is deployed alongside application and platform service components that need to be monitored, and acts as the interface between the system components and the monitoring system. It is deployed as part of the client library or the application runtime or as a side-car of the platform service components. It provides interfaces for application and platform service components to register \new{metric streams}\soutnew{metrics} and record measurements for those metrics. 
 
 \subsubsection{Metrics Server}
-The Metrics Server is the component that holds the metrics reported by the various Metrics Agents. The Metrics Server serves two main functions - (i) it acts as a store for time-series measurement values, and (ii) an execution runtime for the aggregation and policy functions as discussed in \cref{sec:monitoring_functions}. 
-\par The Metrics Server provides an interface similar to a Time-Series Data Base (TSDB). The Metrics Server provides a relational schema for defining metrics and their associated metadata. Having a relational schema also allows aggregation and policy logic to express queries based on metadata fields. The Metrics Server supports high-velocity ingestion of observations, and efficient support for querying historical metric values.
-\par The Metrics Server supports platform-specific functions to be executed over the monitoring data that is stored in its data store. It allows the aggregation and policy functions to query metrics using their metadata fields. Once the identifier for a particular metric is known, the Metrics Server allows queries to fetch most recent as well as historical measurements recorded for that metric.
+The Metrics Server is the component that holds the \new{metric streams}\soutnew{metrics} reported by the various Metric Agents. The Metric Server serves two main functions - (i) it acts as a store for time-series measurement values, and (ii) an execution runtime for the aggregation and policy functions as discussed in \cref{sec:monitoring_functions}. 
+\par The Metrics Server provides an interface similar to a Time-Series Data Base (TSDB). The Metrics Server provides a relational schema for defining \new{metric streams}\soutnew{metrics} and their associated metadata. Having a relational schema also allows aggregation and policy logic to express queries based on metadata fields. The Metrics Server supports high-velocity ingestion of measurements, and efficient support for querying historical metric values.
+\par The Metrics Server supports platform-specific functions to be executed over the monitoring data that is stored in its data store. It allows the aggregation and policy functions to query \new{metric streams}\soutnew{metrics} using their metadata fields. Once the identifier for a particular \new{metric stream}\soutnew{metric} is known, the Metrics Server allows queries to fetch most recent as well as historical measurements recorded for that \new{metric stream}\soutnew{metric}.
 
 \subsection{Metrics of Interest}
 We consider the following metrics of interest for quantifying the \textit{goodness} of the various design choices for implementing the end-to-end monitoring mechanism.
 \begin{itemize}
 \item \textbf{Monitoring Traffic through WAN. } The large number of application and platform-service entities continuously processing data and generating performance metrics would present a large volume of data to be fed into the monitoring system. The amount of traffic sent through the WAN needs to be minimized for the mechanism to be scalable.
-\item \textbf{Detection Latency of Violation. }The time taken by the monitoring subsystem (including the Policy) to detect a significant change in a metric defines the responsiveness of the platform service to alleviate a potential violation. Hence, we intend to minimize the time taken by the monitoring mechanism to detect a violation.
-\item \textbf{Resource Requirements of Metrics Server. } The CPU and memory usage of the monitoring components need to be low so that instances of Metrics Agents and Metrics Servers can be hosted on Edge resources. A high resource requirement would mean that resources that could have been used for the data-plane of platform services would need to be devoted to monitoring, potentially resulting in worse utilization of scarce Edge resources.
+\item \textbf{Elapsed Time for Detecting Violation. }The time taken by the monitoring subsystem (including the Policy) to detect a significant change in \new{the measurements of a metric stream}\soutnew{a metric} defines the responsiveness of the platform service to alleviate a potential violation. Hence, we intend to minimize the time taken by the monitoring mechanism to detect a violation.
+\item \soutnew{\textbf{Resource Requirements of Metrics Server. } The CPU and memory usage of the monitoring components need to be low so that instances of Metrics Agents and Metrics Servers can be hosted on Edge resources. A high resource requirement would mean that resources that could have been used for the data-plane of platform services would need to be devoted to monitoring, potentially resulting in worse utilization of scarce Edge resources.}
 \end{itemize}
 
 
@@ -280,19 +281,19 @@ We consider the following metrics of interest for quantifying the \textit{goodne
 We explore two design choices for organizing the logical functions discussed in \cref{sec:monitoring_functions} over a geo-distributed infrastructure. We consider two design choices.
 
 \subsubsection{Fully Centralized Approach}
-In the fully centralized approach, all of the monitoring functionalities, ranging from the Per-Metric Aggregation to the Policy Execution are hosted in the Cloud. In this approach, the metrics are emitted by Metric Emitters located at the Edge within Metrics Agents, and the raw measurements traverse through the WAN to get to the downstream functions. 
+In the fully centralized approach, all of the monitoring functionalities, ranging from the Per-Stream\soutnew{Metric} Aggregation to the Policy Execution are hosted in the Cloud. In this approach, the \new{measurements of metric streams}\soutnew{metrics} are emitted by Metric Emitters located at the Edge within Metrics Agents, and the raw measurements traverse through the WAN to get to the downstream functions. 
 
 \subsubsection{Distributed Approach}
-In this approach, the Metric Emitters are located within Metrics Agents, that is same as the centralized approach. In addition to that, the Per-Metric Aggregation function for a given metric is co-located with the Emitter for that metric. In this way, raw measurements are not sent through the WAN, rather it is the time-aligned metric stream that is sent to the Cross-Metric Aggregation function. Since the bucket-size configuration parameter of a Per-Metric Aggregation instance does not change frequently, it is possible to maintain several geo-distributed instances at a large scale without the overhead of reconfiguring them frequently.
+In this approach, the Metric Emitters are located within Metrics Agents, that is same as the centralized approach. In addition to that, the Per-\new{Stream}\soutnew{Metric} Aggregation function for a given metric \new{stream} is co-located with the Emitter for that metric \new{stream}. In this way, raw measurements are not sent through the WAN, rather it is the time-aligned metric stream that is sent to the Cross-\new{Stream}\soutnew{Metric} Aggregation function. Since the bucket-size configuration parameter of a Per-\new{Stream}\soutnew{Metric} Aggregation instance does not change frequently, it is possible to maintain several geo-distributed instances at a large scale without the overhead of reconfiguring them frequently.
 
 \begin{comment}
 \subsubsection{Distributed Approach 2}
-This approach is a variant of the Distributed Approach 1, wherein, the Cross-Metric Aggregation component is also moved to the Edge. Typical control-plane policies such as violation detection operate independently on a specific unit of the application, such as a specific application pipeline instance or publish-subscribe topic. Hence it is possible to host multiple instances of cross-metric aggregation component for different application units at multiple Metrics Servers running on the Edge. All the metrics corresponding to a specific application unit will need to be sent to the Metric Server that hosts that application unit's cross-metric aggregation function. 
+This approach is a variant of the Distributed Approach 1, wherein, the Cross-\new{Stream}\soutnew{Metric} Aggregation component is also moved to the Edge. Typical control-plane policies such as violation detection operate independently on a specific unit of the application, such as a specific application pipeline instance or publish-subscribe topic. Hence it is possible to host multiple instances of cross-metric aggregation component for different application units at multiple Metrics Servers running on the Edge. All the metrics corresponding to a specific application unit will need to be sent to the Metric Server that hosts that application unit's cross-metric aggregation function. 
 \end{comment}
 
 \subsection{Evaluation of Candidate Design Choices}
-We evaluate the aforementioned candidate design choices for implementing the end-to-end monitoring mechanism and present results in this section. In our evaluations, we consider one application unit that has a number of distributed system entities associated with it. Each of these system entities generate measurements to one metric at a certain measurement frequency. Each metric is time-aligned using a specific bucket-size wherein the measurements falling inside a bucket are summarized by taking an average. The time-aligned summaries of each metric are sent to the Multi-Metric Aggregation that checks if all the metric summaries for the current bucket have been received, and if so, passes them to the policy execution component. 
-\par In our experiments, the Metric Emitters are located on the Edge, while the Multi-Metric Aggregation is deployed in the Cloud. Per-Metric Aggregation can run either on the Edge alongside Metric Emitters or in the Cloud based on the design choice being evaluated. 
+We evaluate the aforementioned candidate design choices for implementing the end-to-end monitoring mechanism and present results in this section. In our evaluations, we consider one application unit that has a number of distributed system entities associated with it. Each of these system entities generate measurements to one metric \new{stream} at a certain measurement frequency. Each metric \new{stream} is time-aligned using a specific bucket-size wherein the measurements falling inside a bucket are summarized by taking an average. The time-aligned summaries of each metric \new{stream} are sent to the Multi-\new{Stream}\soutnew{Metric} Aggregation that checks if \new{the measurement summaries of all the metric streams}\soutnew{all the metric summaries} for the current bucket have been received, and if so, passes them to the policy execution component. 
+\par In our experiments, the Metric Emitters are located on the Edge, while the \new{Cross-Stream}\soutnew{Multi-Metric} Aggregation is deployed in the Cloud. Per-\new{Stream}\soutnew{Metric} Aggregation can run either on the Edge alongside Metric Emitters or in the Cloud based on the design choice being evaluated. 
 
 \begin{figure}
 \centering
@@ -300,24 +301,43 @@ We evaluate the aforementioned candidate design choices for implementing the end
 \caption{Network bandwidth usage of the design choices for end-to-end monitoring mechanism.}
 \label{fig:monitoring_nw_usage}
 \end{figure}
-\cref{fig:monitoring_nw_usage} shows the network bandwidth usage by the two design choices we evaluate for the end-to-end monitoring mechanism. We perform the evaluation for two bucket sizes - 1 second and 4 seconds - and two per-metric measurement rates - 2.5 and 10 measurements per second. For all four of these configurations, we see that the Distributed design choice incurs less network traffic between the Edge and the Cloud as compared to the Centralized design choice. Furthermore, the traffic consumed by Distributed approach does not change with different per-metric measurement rates because it only sends a summary of measurements (average) at an interval of 1 bucket size. This result quantitatively affirms our intuition that the Distributed design would be more scalable in terms of network bandwidth usage.
+\cref{fig:monitoring_nw_usage} shows the network bandwidth usage by the two design choices we evaluate for the end-to-end monitoring mechanism. We perform the evaluation for two bucket sizes - 1 second and 4 seconds - and two per-\new{stream}\soutnew{metric} measurement rates - 2.5 and 10 measurements per second. For all four of these configurations, we see that the Distributed design choice incurs less network traffic between the Edge and the Cloud as compared to the Centralized design choice. Furthermore, the traffic consumed by Distributed approach does not change with different per-\new{stream}\soutnew{metric} measurement rates because it only sends a summary of measurements (average) at an interval of 1 bucket size. This result quantitatively affirms our intuition that the Distributed design would be more scalable in terms of network bandwidth usage. \new{We demonstrate the utility of the end-to-end monitoring mechanism in the context of a publish-subscribe system in \cref{sec:epulsar}. For the \gls{uav} swarm coordination application, each \gls{uav} creates a distinct metric stream. Similarly in \cref{sec:oneedge}, we present the use of the proposed monitoring mechanism in the context of an application orchestrator. In the case of the collaborative perception application, each client device as well as each instance of an application component generates one metric stream. Therefore, in typical application scenarios with thousands of clients in a city, we expect to see several thousand metric streams being processed by the monitoring mechanism for that city alone -- leading to a significant difference in the network traffic usage between the two design choices.}
+
+%\begin{figure}
+%\centering
+%\includegraphics[width=\linewidth]{figures/design_space/monitoring/cpu_usage.png}
+%\caption{CPU usage of each component in various design choices of the end-to-end %monitoring mechanism.}
+%\label{fig:monitoring_cpu_usage}
+%\end{figure}
+\soutnew{\cref{fig:monitoring_cpu_usage} shows the CPU usage of the various components involved in the monitoring mechanism, when deployed in the evaluated design choice configurations. In the centralized approach, when all raw measurements are sent directly to the Cloud, the Per-\new{Stream}\soutnew{Metric} Aggregation components consume a high amount of CPU to process the incoming measurements. The CPU usage naturally grows with the number of \new{metric streams}\soutnew{metrics} and the rate of measurements reported for each individual \new{metric stream}\soutnew{metric}. The \new{Cross-Stream}\soutnew{Multi-Metric} Alignment component, however, is much less resource-intensive in comparison. In the Distributed approach, since the Per-\new{Stream}\soutnew{Metric} Aggregation component is co-resident with the Metrics Emitter, the CPU load for aggregating metrics is spread over all the geo-distributed Metric Emitters, and hence we do not show it in the figure. The evaluation results show that in terms of CPU usage, the Distributed design choice is more scalable.}
 
 \begin{figure}
 \centering
-\includegraphics[width=\linewidth]{figures/design_space/monitoring/cpu_usage.png}
-\caption{CPU usage of each component in various design choices of the end-to-end monitoring mechanism.}
-\label{fig:monitoring_cpu_usage}
-\end{figure}
-\cref{fig:monitoring_cpu_usage} shows the CPU usage of the various components involved in the monitoring mechanism, when deployed in the evaluated design choice configurations. In the centralized approach, when all raw measurements are sent directly to the Cloud, the Per-Metric Aggregation components consume a high amount of CPU to process the incoming measurements. The CPU usage naturally grows with the number of metrics and the rate of measurements reported for each individual metric. The Multi-Metric Alignment component, however, is much less resource-intensive in comparison. In the Distributed approach, since the Per-Metric Aggregation component is co-resident with the Metrics Emitter, the CPU load for aggregating metrics is spread over all the geo-distributed Metric Emitters, and hence we do not show it in the figure. The evaluation results show that in terms of CPU usage, the Distributed design choice is more scalable.
-
-\begin{figure}
-\centering
-\includegraphics[width=\linewidth]{figures/design_space/monitoring/response_time.png}
-\caption{Variation of the latency of detecting violations with the different design choices evaluated.}
+\begin{subfigure}{0.48\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/design_space/monitoring/response_time_B_1000.png}
+  \caption{Elapsed time for detecting violations with a per-stream alignment bucket size of 1 second.}
+  \label{fig:response_time_b_1000}
+\end{subfigure}
+\begin{subfigure}{0.48\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/design_space/monitoring/response_time_B_4000.png}
+  \caption{Elapsed time for detecting violations with a per-stream alignment bucket size of 4 seconds.}
+  \label{fig:response_time_b_4000}
+\end{subfigure}
+\caption{Variation of the elapsed time for detecting a violation with increasing number of metric streams to be aggregated. The Centralized and Distributed approaches incur similar time to detect a violation, which remains relatively constant with increasing number of streams and only depends on the bucket size.}
 \label{fig:monitoring_response_time}
 \end{figure}
-Finally, \cref{fig:monitoring_response_time} shows the variation of the latency of detecting a violation with the two evaluated design choices. The results show that both Centralized and Distributed Approaches have a similar behavior in terms of the violation detection latency, with the latency being dependent only on the bucket size. 
-\par Hence, we conclude that the Distributed Design choice is not only more scalable in terms of network and CPU usage, but it also provides the same response time as the Centralized approach. Hence, we use it in implementing the end-to-end monitoring mechanism.
+
+%\begin{figure}
+%\centering
+%\includegraphics[width=\linewidth]{figures/design_space/monitoring/response_time.png}
+%\caption{Variation of the latency of detecting violations with the different design choices %evaluated.}
+%\label{fig:monitoring_response_time}
+%\end{figure}
+
+\cref{fig:monitoring_response_time} shows the variation of the elapsed time for detecting a violation with the two evaluated design choices, with the per-metric-stream measurement rate of 10 measurements per second. The results show that both Centralized and Distributed Approaches have a similar behavior in terms of the violation detection latency, with the latency being dependent only on the bucket size. 
+\par Hence, we conclude that the Distributed Design choice is not only more scalable in terms of network usage, but it also provides the same violation detection latency as the Centralized approach. Hence, we use the Distributed design choice for implementing the end-to-end monitoring mechanism.
 
 \subsection*{Summary}
 So far in this dissertation, we have determined the three mechanisms which are its main contributions. We have identified the right abstractions that they should offer to the control plane policies and performed a design-space exploration to identify the best design for each mechanism for an Edge infrastructure. The next step is to demonstrate the utility of the proposed mechanisms in constructing platform services that will be used by application developers in constructing platform services to serve situation-awareness applications. We do so through three platform services, that are enumerated as follows:

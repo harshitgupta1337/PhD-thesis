@@ -19,7 +19,7 @@ In this section, we will set the stage for the discussion of how \oneedge{} leve
 
 \subsection{Application Model}
 \label{sec:oneedge_app_model}
-Situation-awareness applications process data incoming from sensors through a series of functions, each extracting out certain information from the input data or performing a certain operation. This can be naturally modeled as a Data Flow Graph (DFG) \cite{dfg}. Each node in a DFG represents a processing function and each directed edge represents a data dependency between the upstream and downstream node. In \oneedge{}, we assume a special case of the more general DFG model, that is a pipeline of functions. As shown in \cref{fig:app_pipeline}, each DFG node, or application component, is an independent actor, and is represented by a level. Level 0 is assigned to the most downstream component, and the level number increases as we go upstream toward the client. Each component reads from a queue of input events that is populated by the upstream component and sends output events to the downstream component. An application component is also able to send messages to an upstream component (including the client).
+Situation-awareness applications process data incoming from sensors through a series of functions, each extracting out certain information from the input data or performing a certain operation. This can be naturally modeled as a Data Flow Graph (DFG) \cite{dfg}. Each node in a DFG represents a processing function and each directed edge represents a data dependency between the upstream and downstream node. In \oneedge{}, we assume a special case of the more general DFG model, that is a pipeline of functions. As shown in \cref{fig:app_pipeline_oneedge}, each DFG node, or application component, is an independent actor, and is represented by a level. Level 0 is assigned to the most downstream component, and the level number increases as we go upstream toward the client. Each component reads from a queue of input events that is populated by the upstream component and sends output events to the downstream component. An application component is also able to send messages to an upstream component (including the client).
 
 \begin{figure}[ht]
 \centering
@@ -27,7 +27,7 @@ Situation-awareness applications process data incoming from sensors through a se
   \centering
     \includegraphics[width=\columnwidth]{figures/oneedge/app_pipeline.pdf}
     \caption{Application Pipeline.}
-    \label{fig:app_pipeline}
+    \label{fig:app_pipeline_oneedge}
 \end{subfigure}
 \begin{subfigure}{.48\columnwidth}
   \centering
@@ -143,9 +143,9 @@ Several situation-awareness applications such as the collaborative driving assis
    Y = \{y \in \mathbb{R}~|~\dfrac{-\pi}{2} < y < \dfrac{\pi}{2}\}
 \end{equation}
 
-For an application component of level $l$ that needs to facilitate inter-client information sharing, the control-plane assigns each spatial context $s_z$ with an application component and map all clients located within that spatial context to that instance. Multiple spatial contexts can also be mapped to the same application instance. However, the main requirement is that all clients within given spatial context should be served by the same application instance so that they can effectively share state with other clients in the same spatial context. The quality of this client-application-instance mapping is quantified using the Spatial Alignment metric, as shown in \cref{eq:spatial_alignment}. The Spatial Alignment metric is defined for each spatial context $s_z$ that is served by the application component instance $a_z$ at level $l$.  Ideally, the spatial alignment metric should be equal to 1 for all spatial contexts.
+For an application component of level $l$ that needs to facilitate inter-client information sharing, the control-plane assigns each spatial context $s_z$ with an application component and map all clients located within that spatial context to that instance. Multiple spatial contexts can also be mapped to the same application instance. However, the main requirement is that all clients within given spatial context should be served by the same application instance so that they can effectively share state with other clients in the same spatial context. The quality of this client-application-instance mapping is quantified using the Spatial Alignment metric, as shown in \cref{eq:spatial_alignment_oneedge}. The Spatial Alignment metric is defined for each spatial context $s_z$ that is served by the application component instance $a_z$ at level $l$.  Ideally, the spatial alignment metric should be equal to 1 for all spatial contexts.
 \begin{equation}
-\label{eq:spatial_alignment}
+\label{eq:spatial_alignment_oneedge}
 SA \left( a_z \right) = \dfrac{|\{ c \in \clientset : c.loc \in s_z  : \mathcal{M} \left( c, l\right) = a_z \}|}{|\{ c \in \clientset : c.loc \in s_z \}|}
 \end{equation}
 
@@ -483,7 +483,7 @@ Second, the function $get\_reuse\_candidates$ is modified to return the worker c
         \EndIf
     \EndIf
 \Else
-    \State Perform regular functionality of $get\_reuse\_candidates$ as in \cref{algo:todo}
+    \State Perform regular functionality of $get\_reuse\_candidates$ as in \cref{algo:get_reuse_candidates}
 \EndIf
 \State \Return $C$
 \end{algorithmic}
@@ -563,7 +563,7 @@ Each worker agent collects measurements of processing latency and network coordi
 \caption{End-to-End Processing Latency Violation Detection policy}
 \label{algo:oneedge_violation_detection}
 \begin{algorithmic}[1]
-\Require ID of root worker $ID_{root}$ ($A_{00}$ in \cref{fig:pipeline_example}).
+\Require ID of root worker $ID_{root}$ 
 \Require Application abstract $APP$
 \Require Current bucket $b_{curr}$
 \State $MD \gets \text{Fetch metrics where AppUnit == }A_{00}$
@@ -600,6 +600,7 @@ Each worker agent collects measurements of processing latency and network coordi
 \end{algorithm}
 
 \subsection{Violation Root-Cause Analysis Policy}
+\label{sec:oneedge_root_cause_chapter}
 For each client undergoing latency SLO violation, as detected by the violation detection policy in \cref{algo:oneedge_violation_detection}, \oneedge{} used the violation root-cause analysis policy (\cref{algo:violation_root_cause}) to identify the source of performance violation. The algorithm first extracts the component latencies that resulted in the violation for the given client $c$ (lines 4-9). Using the component latencies, it computes the response time observed in the current monitoring window (line 10) - that would be over the latency threshold for level $l_{viol}$. To determine the root cause of this violation, the rest of the algorithm determines which component latency deviated the most from pre-violation levels to the current window. To do so, it first finds the monitoring window (bucket) in which the client did not face SLO violation (line 12), and computes the response time at that time (line 13). Then it computes the relative change in each component latency with respect to the change in observed response time (lines 14-16). Finally, the component that underwent the most change is returned as the source of the violation.
 \begin{algorithm}
 \caption{Violation Root-Cause Analysis}
@@ -688,7 +689,7 @@ We use two situation-awareness applications as the driving workload for evaluati
 \end{enumerate}
 For our evaluations, we use a dataset generated using the ROS~\cite{ros} framework for both the inputs of the camera and IMU ~\cite{dronedataset}. To model the mobility of the drones (each drone operates independently), we use the Luxembourg City vehicle mobility dataset \cite{lust}, associating individual car mobility with that of a drone. 
 
-\item \textbf{View-Fuse.} This is the collaborative perception application for autonomous driving, based on Zijian Zhang et al. \cite{mapfusionimpl}. This application fuses the objects detected by multiple autonomous vehicles from their respective fields of view to create an expanded world sub-regional view (\Cref{fig:connected_cars_with_slo}), that is then sent back to the vehicles in the same geographical locale to improve collision avoidance decisions. To create a mockup of this application for our evaluation purposes, we first created a dataset using Carla~\cite{carlasim}. Specifically, we used 80+ cars driving through the most complex map directly available in Carla (called Town3). A 15-minute Carla simulation produces a spatio-temporal dataset consisting of object detections by individual vehicles. 
+\item \textbf{View-Fuse.} This is the collaborative perception application for autonomous driving, based on Zijian Zhang et al. \cite{mapfusionimpl}. This application fuses the objects detected by multiple autonomous vehicles from their respective fields of view to create an expanded world sub-regional view, that is then sent back to the vehicles in the same geographical locale to improve collision avoidance decisions. To create a mockup of this application for our evaluation purposes, we first created a dataset using Carla~\cite{carlasim}. Specifically, we used 80+ cars driving through the most complex map directly available in Carla (called Town3). A 15-minute Carla simulation produces a spatio-temporal dataset consisting of object detections by individual vehicles. 
 \end{itemize}
 We run both the applications against the input dataset and profile the execution time of each component. \cref{table:drone_profile} and \cref{table:mapfusion_profile} show the compute profile of different components the Drone and View-Fuse application respectively that we will be using for this evaluation study.
 
